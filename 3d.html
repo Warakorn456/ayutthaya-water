@@ -119,11 +119,13 @@ svg.section .tick{fill:var(--muted)}
           <label for="radius" class="meta">ในรัศมีจากสถานี</label>
           <select id="radius"><option>5</option><option selected>15</option><option>30</option></select><span class="meta">กม.</span>
           <button id="resetFlood" type="button">ใช้ระดับน้ำจริง</button>
+          <button id="animFlood" type="button">▶ จำลองน้ำขึ้นอีก 2 ม.</button>
         </div>
         <div class="legend">
-          <span><i class="sw" style="background:rgba(120,190,245,.7)"></i>ต่ำกว่า 0–0.5 ม.</span>
-          <span><i class="sw" style="background:rgba(40,120,220,.8)"></i>ต่ำกว่า 1–2 ม.</span>
-          <span><i class="sw" style="background:rgba(15,55,150,.9)"></i>ต่ำกว่า &gt;2 ม.</span>
+          <span><i class="sw" style="background:rgb(128,202,248)"></i>ต่ำกว่า 0–0.5 ม.</span>
+          <span><i class="sw" style="background:rgb(72,130,195)"></i>ต่ำกว่า ~1.5 ม.</span>
+          <span><i class="sw" style="background:rgb(15,55,140)"></i>ต่ำกว่า 3 ม. ขึ้นไป</span>
+          <span><i class="sw" style="background:rgb(8,60,150);height:3px"></i>ขอบน้ำ</span>
         </div>
       </section>
 
@@ -137,6 +139,10 @@ svg.section .tick{fill:var(--muted)}
         <div class="field">
           <label for="exag">ขยายความสูงภูมิประเทศ (อยุธยาเป็นที่ราบมาก)</label>
           <div class="row"><input id="exag" type="range" min="1" max="40" step="1" value="20"><output id="exagOut" class="num" for="exag">20×</output></div>
+        </div>
+        <div class="controls">
+          <button id="baseBtn" type="button" aria-pressed="false">ภาพดาวเทียม</button>
+          <button id="bldBtn" type="button" hidden>ซ่อนอาคาร 3D</button>
         </div>
         <div class="legend">
           <span><i class="sw" style="background:var(--muted);opacity:.5"></i>แท่งเทา = ความสูงตลิ่ง</span>
@@ -259,55 +265,112 @@ maplibregl.addProtocol('flood', async (params) => {
     dem[j * 256 + i] = (tmp[Math.max(j - 1, 0) * 256 + i] + tmp[j * 256 + i] + tmp[Math.min(j + 1, 255) * 256 + i]) / 3;
   const c = canvasOf(256, 256), ctx = c.getContext('2d'), img = ctx.createImageData(256, 256), px = img.data;
   const kx = 111.32 * Math.cos(cLat * Math.PI / 180);
+  // 0 = นอกรัศมี, 1 = พื้นแห้ง, 2 = ต่ำกว่าระดับน้ำ
+  const mask = new Uint8Array(65536), depthOf = new Float32Array(65536);
   for (let j = 0; j < 256; j++) {
     const lat = y2lat(y + (j + .5) / 256, z), dy = (lat - cLat) * 111.32;
     for (let i = 0; i < 256; i++) {
-      const lng = x2lng(x + (i + .5) / 256, z), dx = (lng - cLng) * kx;
+      const lng = x2lng(x + (i + .5) / 256, z), dx = (lng - cLng) * kx, k = j * 256 + i;
       if (dx * dx + dy * dy > R * R) continue;
-      const depth = h - dem[j * 256 + i];
-      if (depth <= 0) continue;
-      const t = Math.min(depth / 2.5, 1), o = (j * 256 + i) * 4;
-      px[o] = 120 - 105 * t; px[o + 1] = 190 - 135 * t; px[o + 2] = 245 - 95 * t; px[o + 3] = 170 + 60 * t;
+      const depth = h - dem[k];
+      mask[k] = depth > 0 ? 2 : 1;
+      depthOf[k] = depth;
     }
+  }
+  for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++) {
+    const k = j * 256 + i;
+    if (mask[k] !== 2) continue;
+    const o = k * 4;
+    // ขอบน้ำ: ติดกับพื้นแห้ง
+    const shore = (i > 0 && mask[k - 1] === 1) || (i < 255 && mask[k + 1] === 1) || (j > 0 && mask[k - 256] === 1) || (j < 255 && mask[k + 256] === 1);
+    if (shore) { px[o] = 8; px[o + 1] = 60; px[o + 2] = 150; px[o + 3] = 255; continue; }
+    let t = Math.min(depthOf[k] / 3, 1); t = t * t * (3 - 2 * t);
+    px[o] = 130 - 115 * t; px[o + 1] = 205 - 150 * t; px[o + 2] = 250 - 110 * t; px[o + 3] = 150 + 80 * t;
   }
   ctx.putImageData(img, 0, 0);
   return {data: await (await toPng(c)).arrayBuffer()};
 });
 
 // ---------- แผนที่ ----------
-const map = new maplibregl.Map({
-  container: 'map',
-  center: [100.568, 14.355], zoom: 11.2, pitch: 60, bearing: -20, maxPitch: 80,
-  style: {
-    version: 8,
-    sources: {
-      osm: {type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '© OpenStreetMap'},
-      dem: {type: 'raster-dem', tiles: [DEM_URL], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'ความสูง: SRTM / AWS Terrain Tiles'},
-      shade: {type: 'raster-dem', tiles: [DEM_URL], encoding: 'terrarium', tileSize: 256, maxzoom: 14},
-      flood: {type: 'raster', tiles: ['flood://{z}/{x}/{y}?h=-99&lat=0&lng=0&r=0'], tileSize: 256, minzoom: 8, maxzoom: 14},
-      st: {type: 'geojson', data: {type: 'FeatureCollection', features: []}},
-      bank: {type: 'geojson', data: {type: 'FeatureCollection', features: []}},
-      water: {type: 'geojson', data: {type: 'FeatureCollection', features: []}}
-    },
-    layers: [
-      {id: 'osm', type: 'raster', source: 'osm'},
-      {id: 'shade', type: 'hillshade', source: 'shade', paint: {'hillshade-exaggeration': .6, 'hillshade-shadow-color': '#3a2a1a'}},
-      {id: 'flood', type: 'raster', source: 'flood', paint: {'raster-opacity': .85, 'raster-fade-duration': 0}},
-      {id: 'water-ext', type: 'fill-extrusion', source: 'water', paint: {
-        'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-opacity': .95,
-        'fill-extrusion-height': ['interpolate', ['exponential', 2], ['zoom'], 8, ['*', ['get', 'hh'], 1500], 15, ['*', ['get', 'hh'], 12]]}},
-      {id: 'bank-ext', type: 'fill-extrusion', source: 'bank', paint: {
-        'fill-extrusion-color': '#7f8f98', 'fill-extrusion-opacity': .45,
-        'fill-extrusion-height': ['interpolate', ['exponential', 2], ['zoom'], 8, ['*', ['get', 'hh'], 1500], 15, ['*', ['get', 'hh'], 12]]}},
-      {id: 'st-dot', type: 'circle', source: 'st', paint: {
-        'circle-radius': ['case', ['==', ['get', 'id'], ''], 5, 5], 'circle-color': ['get', 'color'],
-        'circle-stroke-color': '#fff', 'circle-stroke-width': ['case', ['boolean', ['get', 'sel'], false], 3, 1.5]}}
-    ],
-    terrain: {source: 'dem', exaggeration: 20}
+const EXT_H = ['interpolate', ['exponential', 2], ['zoom'], 8, ['*', ['get', 'hh'], 1500], 11, ['*', ['get', 'hh'], 190], 13, ['*', ['get', 'hh'], 25], 15, ['*', ['get', 'hh'], 5]];
+// ซูมใกล้ระดับถนน ให้แท่งจางหายไปจะได้ไม่บังอาคาร
+const EXT_FADE = max => ['interpolate', ['linear'], ['zoom'], 13, max, 14.5, 0];
+const OSM_STYLE = {version: 8, sources: {osm: {type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '© OpenStreetMap'}},
+  layers: [{id: 'osm', type: 'raster', source: 'osm'}]};
+const OUR_SOURCES = {
+  esri: {type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'], tileSize: 256, maxzoom: 19,
+    attribution: 'ภาพดาวเทียม © Esri, Maxar, Earthstar Geographics'},
+  dem: {type: 'raster-dem', tiles: [DEM_URL], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'ความสูง: SRTM / AWS Terrain Tiles'},
+  shade: {type: 'raster-dem', tiles: [DEM_URL], encoding: 'terrarium', tileSize: 256, maxzoom: 14},
+  flood: {type: 'raster', tiles: ['flood://{z}/{x}/{y}?h=-99&lat=0&lng=0&r=0'], tileSize: 256, minzoom: 8, maxzoom: 14},
+  st: {type: 'geojson', data: {type: 'FeatureCollection', features: []}},
+  bank: {type: 'geojson', data: {type: 'FeatureCollection', features: []}},
+  water: {type: 'geojson', data: {type: 'FeatureCollection', features: []}}
+};
+// ใต้ถนนและป้ายชื่อ: ภาพดาวเทียม, เงาภูมิประเทศ, พื้นที่ต่ำกว่าระดับน้ำ
+const UNDER = [
+  {id: 'esri', type: 'raster', source: 'esri', layout: {visibility: 'none'}},
+  {id: 'shade', type: 'hillshade', source: 'shade', paint: {'hillshade-exaggeration': .5, 'hillshade-shadow-color': '#3a2a1a'}},
+  {id: 'flood', type: 'raster', source: 'flood', paint: {'raster-opacity': .9, 'raster-fade-duration': 0}}
+];
+const EXTRUDE = [
+  {id: 'water-ext', type: 'fill-extrusion', source: 'water', paint: {'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-opacity': EXT_FADE(.95), 'fill-extrusion-height': EXT_H}},
+  {id: 'bank-ext', type: 'fill-extrusion', source: 'bank', paint: {'fill-extrusion-color': '#7f8f98', 'fill-extrusion-opacity': EXT_FADE(.45), 'fill-extrusion-height': EXT_H}}
+];
+const DOTS = {id: 'st-dot', type: 'circle', source: 'st', paint: {
+  'circle-radius': 5, 'circle-color': ['get', 'color'],
+  'circle-stroke-color': '#fff', 'circle-stroke-width': ['case', ['boolean', ['get', 'sel'], false], 3, 1.5]}};
+const LABELS = {id: 'st-label', type: 'symbol', source: 'st', minzoom: 9.5, layout: {
+  'text-field': ['concat', ['get', 'name'], '\n', ['get', 'pctTxt']], 'text-font': ['Noto Sans Bold'], 'text-size': 12,
+  'text-anchor': 'bottom', 'text-offset': [0, -.8], 'text-max-width': 12},
+  paint: {'text-color': '#0f2530', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6}};
+
+// แผนที่ฐาน OpenFreeMap (มีอาคาร 3D และชื่อภาษาไทย) ถ้าโหลดไม่ได้ใช้ OpenStreetMap แบบภาพแทน
+async function buildStyle(){
+  let base = null;
+  try {
+    const ctl = new AbortController(), tm = setTimeout(() => ctl.abort(), 8000);
+    const r = await fetch('https://tiles.openfreemap.org/styles/liberty', {signal: ctl.signal});
+    clearTimeout(tm);
+    if (r.ok) base = await r.json();
+  } catch (e) {}
+  const vector = !!(base && base.layers && base.glyphs);
+  const st = vector ? base : JSON.parse(JSON.stringify(OSM_STYLE));
+  if (vector) for (const l of st.layers) {
+    const tf = l.layout?.['text-field'];
+    if (tf && JSON.stringify(tf).includes('name')) l.layout['text-field'] = ['coalesce', ['get', 'name:th'], ['get', 'name'], ['get', 'name_en']];
   }
-});
-map.addControl(new maplibregl.NavigationControl({visualizePitch: true}), 'top-right');
-map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+  Object.assign(st.sources, OUR_SOURCES);
+  const cut = vector ? st.layers.findIndex(l => l.type === 'line' || l.type === 'symbol') : -1;
+  st.layers.splice(cut < 0 ? st.layers.length : cut, 0, ...UNDER);
+  const sym = st.layers.findIndex(l => l.type === 'symbol');
+  st.layers.splice(sym < 0 ? st.layers.length : sym, 0, ...EXTRUDE);
+  st.layers.push(DOTS);
+  if (vector) st.layers.push(LABELS);
+  st.terrain = {source: 'dem', exaggeration: +$('exag').value || 20};
+  return {style: st, vector};
+}
+
+let map = null, vectorBase = false;
+function initMap({style, vector}){
+  vectorBase = vector;
+  $('bldBtn').hidden = !vector;
+  map = new maplibregl.Map({container: 'map', center: [100.568, 14.355], zoom: 11.2, pitch: 60, bearing: -20, maxPitch: 80, style});
+  map.addControl(new maplibregl.NavigationControl({visualizePitch: true}), 'top-right');
+  map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+  map.on('load', () => { load(); setInterval(load, REFRESH_MS); });
+  for (const id of ['st-dot', 'water-ext', 'bank-ext']) {
+    map.on('click', id, ev => {
+      ev.preventDefault();
+      const s = stations.find(x => x.id === String(ev.features[0].properties.id));
+      if (s) selectStation(s, false);
+    });
+    map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
+    map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');
+  }
+  map.on('click', ev => { if (!ev.defaultPrevented) handlePoint(ev.lngLat.lat, ev.lngLat.lng); });
+}
+buildStyle().then(initMap);
 
 function ring(lat, lng, rKm, n = 20){
   const kx = 111.32 * Math.cos(lat * Math.PI / 180), pts = [];
@@ -321,7 +384,7 @@ function renderMapData(){
   const usable = stations.filter(s => s.msl != null && s.bank != null);
   const F = (s, geometry, props) => ({type: 'Feature', geometry, properties: {id: s.id, ...props}});
   map.getSource('st').setData({type: 'FeatureCollection', features: usable.map(s =>
-    F(s, {type: 'Point', coordinates: [s.lng, s.lat]}, {color: css('--' + level(s.pct).k), sel: current?.id === s.id}))});
+    F(s, {type: 'Point', coordinates: [s.lng, s.lat]}, {color: css('--' + level(s.pct).k), sel: current?.id === s.id, name: s.name, pctTxt: s.pct != null ? Math.round(s.pct) + '%' : ''}))});
   map.getSource('bank').setData({type: 'FeatureCollection', features: usable.map(s =>
     F(s, ring(s.lat, s.lng, .5), {hh: Math.max(s.bank - bedOf(s), .1)}))});
   map.getSource('water').setData({type: 'FeatureCollection', features: usable.map(s =>
@@ -468,26 +531,45 @@ async function load(){
   }
 }
 
-map.on('load', () => { load(); setInterval(load, REFRESH_MS); });
-for (const id of ['st-dot', 'water-ext', 'bank-ext']) {
-  map.on('click', id, ev => {
-    ev.preventDefault();
-    const s = stations.find(x => x.id === String(ev.features[0].properties.id));
-    if (s) selectStation(s, false);
-  });
-  map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
-  map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');
-}
-map.on('click', ev => { if (!ev.defaultPrevented) handlePoint(ev.lngLat.lat, ev.lngLat.lng); });
+// ---------- แผนที่ฐาน / อาคาร / จำลองน้ำขึ้น ----------
+$('baseBtn').addEventListener('click', () => {
+  if (!map) return;
+  const sat = map.getLayoutProperty('esri', 'visibility') !== 'visible';
+  map.setLayoutProperty('esri', 'visibility', sat ? 'visible' : 'none');
+  $('baseBtn').textContent = sat ? 'แผนที่ถนน' : 'ภาพดาวเทียม';
+  $('baseBtn').setAttribute('aria-pressed', sat);
+});
+$('bldBtn').addEventListener('click', () => {
+  if (!map || !map.getLayer('building-3d')) return;
+  const show = map.getLayoutProperty('building-3d', 'visibility') === 'none';
+  map.setLayoutProperty('building-3d', 'visibility', show ? 'visible' : 'none');
+  $('bldBtn').textContent = show ? 'ซ่อนอาคาร 3D' : 'แสดงอาคาร 3D';
+});
+let anim = null;
+function stopAnim(){ clearInterval(anim); anim = null; $('animFlood').textContent = '▶ จำลองน้ำขึ้นอีก 2 ม.'; }
+$('animFlood').addEventListener('click', () => {
+  if (anim) { stopAnim(); return; }
+  if (!current) return;
+  const start = current.msl, end = start + 2;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setFlood(end); return; }
+  let h = start;
+  $('animFlood').textContent = '■ หยุด';
+  setFlood(h);
+  anim = setInterval(() => {
+    h = Math.min(h + .1, end);
+    setFlood(h);
+    if (h >= end) stopAnim();
+  }, 700);
+});
 
 $('station').addEventListener('change', e => { const s = stations.find(x => x.id === e.target.value); if (s) selectStation(s, true); });
 $('flood').addEventListener('input', e => { $('floodOut').textContent = (+e.target.value).toFixed(2) + ' ม.'; });
-$('flood').addEventListener('change', e => setFlood(e.target.value));
+$('flood').addEventListener('change', e => { if (anim) stopAnim(); setFlood(e.target.value); });
 $('radius').addEventListener('change', () => setFlood($('flood').value));
 $('resetFlood').addEventListener('click', () => current && setFlood(current.msl));
 $('exag').addEventListener('input', e => {
   $('exagOut').textContent = e.target.value + '×';
-  map.setTerrain({source: 'dem', exaggeration: +e.target.value});
+  map?.setTerrain({source: 'dem', exaggeration: +e.target.value});
 });
 $('refresh').addEventListener('click', load);
 $('locate').addEventListener('click', () => {
