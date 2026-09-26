@@ -32,7 +32,7 @@ function parse(json){
       amphoe: g.amphoe_name?.th || '',
       msl, prev, bank, ground: num(s.ground_level),
       leftBank: num(s.left_bank), rightBank: num(s.right_bank),
-      pct: num(d.storage_percent), sit: d.situation_level,
+      pct: num(d.storage_percent), sit: d.situation_level, q: num(d.discharge),
       toBank: (msl != null && bank != null) ? bank - msl : null,
       trend: (msl != null && prev != null) ? (msl - prev) * 100 : null,
       time: d.waterlevel_datetime || ''
@@ -118,6 +118,53 @@ function forecast(points, bank){
   const peak = pts.reduce((m, p) => p.v > m.v ? p : m, pts[0]);
   return {v: last.v, t: last.t, cm, cm24: r24 == null ? null : r24 * 100, change24: v24 == null ? null : last.v - v24,
           trend, uncertain, bank, gap, over: gap != null && gap < 0 ? -gap : 0, hoursToBank, peak};
+}
+
+// ---------- น้ำจากต้นน้ำ ----------
+// สถานีหลักตามลำน้ำ เรียงจากต้นน้ำลงมา (id ของ thaiwater)
+const RIVERS = [
+  {name: 'แม่น้ำเจ้าพระยา', stations: [
+    {id: '2795', code: 'C.2', place: 'นครสวรรค์'},
+    {id: '2744', code: 'C.13', place: 'ท้ายเขื่อนเจ้าพระยา ชัยนาท'},
+    {id: '2723', code: 'C.3', place: 'บางพุทรา สิงห์บุรี'},
+    {id: '2626', code: 'C.7A', place: 'บางแก้ว อ่างทอง'},
+    {id: '2609', code: 'C.35', place: 'บ้านป้อม อยุธยา'}]},
+  {name: 'แม่น้ำป่าสัก', stations: [
+    {id: '2712', code: 'S.28', place: 'ท้ายเขื่อนป่าสักชลสิทธิ์'},
+    {id: '2624', code: 'S.26', place: 'ท้ายเขื่อนพระรามหก อยุธยา'}]}
+];
+const DAMS = ['ภูมิพล', 'สิริกิติ์', 'แควน้อยบำรุงแดน', 'ป่าสักชลสิทธิ์'];
+
+// ฝนสะสม 24 ชม. ทุกสถานี
+async function fetchRain(){
+  const r = await fetch(API_BASE + '/rain_24h');
+  if (!r.ok) throw new Error('rain ' + r.status);
+  return ((await r.json())?.data || []).map(d => ({
+    name: d.station?.tele_station_name?.th || '-', lat: num(d.station?.tele_station_lat), lng: num(d.station?.tele_station_long),
+    prov: d.geocode?.province_name?.th || '', provCode: String(d.geocode?.province_code || ''), amphoe: d.geocode?.amphoe_name?.th || '',
+    r24: num(d.rain_24h), r1: num(d.rain_1h), time: d.rainfall_datetime || ''
+  })).filter(d => d.lat && d.lng && d.r24 != null && d.r24 > 0);
+}
+// ระดับฝนตามเกณฑ์กรมอุตุนิยมวิทยา (มม./24 ชม.)
+function rainLevel(mm){
+  if (mm > 90) return {k: 'r4', t: 'ฝนหนักมาก'};
+  if (mm >= 35.1) return {k: 'r3', t: 'ฝนหนัก'};
+  if (mm >= 10.1) return {k: 'r2', t: 'ฝนปานกลาง'};
+  return {k: 'r1', t: 'ฝนเล็กน้อย'};
+}
+
+// เขื่อนหลัก (ไฟล์ใหญ่ เก็บ cache 1 ชม.)
+async function fetchDams(){
+  try { const c = JSON.parse(localStorage.getItem('wl-dams')); if (c && Date.now() - c.at < 36e5) return c.dams; } catch (e) {}
+  const r = await fetch(API_BASE + '/thailand_main');
+  if (!r.ok) throw new Error('dams ' + r.status);
+  const all = (await r.json())?.dam?.data?.data || [];
+  const dams = DAMS.map(n => all.find(d => d.dam?.dam_name?.th === n)).filter(Boolean).map(d => ({
+    name: d.dam.dam_name.th, pct: num(d.dam_storage_percent), storage: num(d.dam_storage),
+    inflow: num(d.dam_inflow), released: num(d.dam_released), date: d.dam_date
+  }));
+  try { localStorage.setItem('wl-dams', JSON.stringify({at: Date.now(), dams})); } catch (e) {}
+  return dams;
 }
 
 function updatedText(res){

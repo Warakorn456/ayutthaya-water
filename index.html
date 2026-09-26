@@ -13,18 +13,21 @@
   --accent:#0b6e8a; --water:#2f7fd0;
   --lv0:#8a9aa3; --lv1:#2f8fce; --lv2:#2e9e5b; --lv3:#d9a300; --lv4:#e0701a; --lv5:#d12f2f;
   --lv5-bg:#fde7e5; --lv4-bg:#fdefe2; --lv3-bg:#fbf4d9; --ok-bg:#e3f4ea;
+  --r1:#bcd8f0; --r2:#6ea6dc; --r3:#2d68b4; --r4:#15306e;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --bg:#0c1a21; --surface:#132831; --ink:#e3eef2; --muted:#8fa9b5; --line:#24404c;
     --accent:#4fb6d4; --water:#4a9be6; --lv5-bg:#3a1a1a; --lv4-bg:#3a2614; --lv3-bg:#35300f; --ok-bg:#12301f;
+    --r1:#35577a; --r2:#4f86c2; --r3:#86b8ee; --r4:#d4e8ff;
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#0c1a21; --surface:#132831; --ink:#e3eef2; --muted:#8fa9b5; --line:#24404c;
   --accent:#4fb6d4; --water:#4a9be6; --lv5-bg:#3a1a1a; --lv4-bg:#3a2614; --lv3-bg:#35300f; --ok-bg:#12301f;
+  --r1:#35577a; --r2:#4f86c2; --r3:#86b8ee; --r4:#d4e8ff;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -37,6 +40,21 @@ h2{font-size:1.05rem}
 a{color:var(--accent)}
 header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
 .meta{color:var(--muted);font-size:.85rem}
+h3{margin:0;font-size:.95rem}
+.flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:0;padding:0;list-style:none}
+.node{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;gap:2px;min-width:0}
+.node .code{font-size:.75rem;color:var(--muted);letter-spacing:.03em}
+.node .q{font-size:1.15rem;font-weight:700}
+.node svg{width:100%;height:28px;display:block}
+.node svg path{fill:none;stroke:var(--muted);stroke-width:1.5}
+.node.ayt{border-color:var(--accent)}
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.dams{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.dam{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;gap:4px}
+.meter{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;border-radius:4px}
+ol.rain{margin:0;padding-left:1.4em;display:grid;gap:4px}
+.toggle{display:inline-flex;gap:6px;align-items:center;font-size:.85rem;cursor:pointer}
 button.link{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;font:inherit;cursor:pointer}
 .dhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
 a.btn{display:inline-block;text-decoration:none;font-weight:500;border:1px solid var(--accent);border-radius:8px;padding:6px 12px}
@@ -99,7 +117,8 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
 
   <div class="grid2">
     <section class="panel">
-      <h2>แผนที่สถานีวัดระดับน้ำ</h2>
+      <div class="dhead"><h2>แผนที่สถานีวัดระดับน้ำ</h2>
+        <label class="toggle" for="rainOn"><input type="checkbox" id="rainOn"> แสดงฝน 24 ชม.</label></div>
       <div id="map"></div>
       <div class="legend">
         <span><i class="dot" style="background:var(--lv5)"></i>ล้นตลิ่ง &gt;100%</span>
@@ -107,6 +126,12 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
         <span><i class="dot" style="background:var(--lv3)"></i>เฝ้าระวัง 70–90%</span>
         <span><i class="dot" style="background:var(--lv2)"></i>ปกติ 30–70%</span>
         <span><i class="dot" style="background:var(--lv1)"></i>น้ำน้อย &lt;30%</span>
+      </div>
+      <div class="legend" id="rainLegend" hidden>
+        <span>ฝน 24 ชม.:</span>
+        <span><i class="dot" style="background:var(--r2)"></i>ปานกลาง 10–35 มม.</span>
+        <span><i class="dot" style="background:var(--r3)"></i>หนัก 35–90</span>
+        <span><i class="dot" style="background:var(--r4)"></i>หนักมาก &gt;90</span>
       </div>
       <p class="hint">% คือระดับน้ำเทียบกับความสูงตลิ่ง แตะที่แผนที่เพื่อปักตำแหน่งบ้านของคุณ</p>
     </section>
@@ -121,6 +146,17 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
       <div id="me"><p class="hint">กด "ใช้ตำแหน่งของฉัน" หรือแตะบนแผนที่ตรงบ้านของคุณ</p></div>
     </section>
   </div>
+
+  <section class="panel" id="upstream">
+    <h2>น้ำจากต้นน้ำ: กำลังมาเพิ่มหรือลดลง</h2>
+    <div id="upSummary"><p class="hint">กำลังโหลดอัตราการไหล…</p></div>
+    <div id="rivers" style="display:grid;gap:12px"></div>
+    <p class="hint">เรียงจากต้นน้ำ (ซ้าย/บน) ลงมาถึงอยุธยา · หน่วย ลบ.ม./วินาที · % คือการเปลี่ยนแปลงเทียบกับ 24 ชม. ก่อน · กราฟเล็กคือ 7 วันล่าสุด</p>
+    <div class="split">
+      <div style="display:grid;gap:8px"><h3>ฝนหนักสุด 24 ชม. (อยุธยาและจังหวัดต้นน้ำ)</h3><ol class="rain" id="rainTop"><li class="hint">กำลังโหลด…</li></ol></div>
+      <div style="display:grid;gap:8px"><h3>เขื่อนหลักเหนืออยุธยา</h3><div id="dams" class="dams"><p class="hint">กำลังโหลดข้อมูลเขื่อน (ไฟล์ใหญ่ อาจใช้เวลาสักครู่)…</p></div></div>
+    </div>
+  </section>
 
   <section class="panel" id="detail" hidden>
     <div class="dhead"><h2 id="detailTitle">รายละเอียดสถานี</h2><a class="btn" id="detail3d" href="3d.html">ดูแบบ 3D / ภาพตัดขวาง</a></div>
@@ -169,6 +205,7 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
 <script src="ui.js"></script>
 <script>
 let stations = [], me = null, meMarker = null, markers = L.layerGroup(), detailId = null;
+let rain = null, rainLayer = L.layerGroup(), statusExtra = '';
 
 function openDetail(s, scroll){
   detailId = s.id;
@@ -190,6 +227,94 @@ async function load(){
   render();
   const d = detailId && stations.find(s => s.id === detailId);
   if (d) openDetail(d, false);
+  loadUpstream(); loadRain(); loadDams();
+}
+
+// ---------- น้ำจากต้นน้ำ ----------
+const upInfo = {};
+function sparkPath(points, w = 100, h = 28){
+  const q = points.filter(p => p.q != null);
+  if (q.length < 3) return '';
+  const lo = Math.min(...q.map(p => p.q)), hi = Math.max(...q.map(p => p.q)), t0 = q[0].t, t1 = q[q.length - 1].t;
+  return q.map((p, i) => `${i ? 'L' : 'M'}${((p.t - t0) / Math.max(t1 - t0, 1) * w).toFixed(1)},${(2 + (hi - p.q) / Math.max(hi - lo, 1) * (h - 4)).toFixed(1)}`).join('');
+}
+async function loadUpstream(){
+  const all = RIVERS.flatMap(r => r.stations);
+  await Promise.all(all.map(async st => {
+    try {
+      const h = await fetchHistory(st.id);
+      const q = h.points.filter(p => p.q != null), last = q[q.length - 1];
+      const s = stations.find(x => x.id === st.id);
+      const now = s?.q ?? last?.q ?? null;
+      const prev = last ? valueAt(h.points, last.t - 24 * 36e5, 'q') : null;
+      upInfo[st.id] = {now, chg: now != null && prev ? (now - prev) / prev * 100 : null, spark: sparkPath(h.points), t: last?.t};
+    } catch (e) { upInfo[st.id] = {now: stations.find(x => x.id === st.id)?.q ?? null, chg: null, spark: ''}; }
+  }));
+  const chg = c => c == null ? '<span class="meta">-</span>' : Math.abs(c) < 3 ? '<span class="meta">ทรงตัว</span>'
+    : c > 0 ? `<span class="up">▲ ${c.toFixed(0)}%</span>` : `<span class="down">▼ ${(-c).toFixed(0)}%</span>`;
+  $('rivers').innerHTML = RIVERS.map(r => `<div style="display:grid;gap:6px"><h3>${r.name}</h3><ol class="flow">${r.stations.map(st => {
+    const u = upInfo[st.id] || {};
+    return `<li class="node${st.place.includes('อยุธยา') ? ' ayt' : ''}"><span class="code">${st.code} · ${esc(st.place)}</span>
+      <span class="q num">${u.now != null ? Math.round(u.now).toLocaleString() : '-'}</span>
+      <span>${chg(u.chg)} <span class="meta">ใน 24 ชม.</span></span>
+      ${u.spark ? `<svg viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"><path d="${u.spark}" vector-effect="non-scaling-stroke"/></svg>` : ''}</li>`;
+  }).join('')}</ol></div>`).join('');
+  const c13 = upInfo['2744'], s26 = upInfo['2624'];
+  const say = (u, where, travel) => {
+    if (!u || u.chg == null) return '';
+    if (u.chg >= 5) return `น้ำที่${where}<b class="up">เพิ่มขึ้น ${u.chg.toFixed(0)}%</b> ใน 24 ชม. (${Math.round(u.now).toLocaleString()} ลบ.ม./วิ) ปกติใช้เวลาราว ${travel} กว่าจะถึงอยุธยา ระดับน้ำที่อยุธยามีแนวโน้มสูงขึ้นอีก`;
+    if (u.chg <= -5) return `น้ำที่${where}<b class="down">ลดลง ${(-u.chg).toFixed(0)}%</b> ใน 24 ชม. อยุธยามีแนวโน้มทรงตัวหรือลดลงในอีกราว ${travel}`;
+    return `น้ำที่${where}ทรงตัว (${Math.round(u.now).toLocaleString()} ลบ.ม./วิ)`;
+  };
+  const lines = [say(c13, 'ไหลผ่านเขื่อนเจ้าพระยา', '1–2 วัน'), say(s26, 'แม่น้ำป่าสัก (เขื่อนพระรามหก) ', 'ไม่กี่ชั่วโมงถึง 1 วัน')].filter(Boolean);
+  $('upSummary').innerHTML = lines.length ? `<ul class="tips">${lines.map(l => `<li>${l}</li>`).join('')}</ul>` : '<p class="hint">ไม่มีข้อมูลอัตราการไหลล่าสุด</p>';
+  if (c13?.now != null) {
+    statusExtra = `ต้นน้ำ (เขื่อนเจ้าพระยา): <span class="num">${Math.round(c13.now).toLocaleString()}</span> ลบ.ม./วิ ${c13.chg == null ? '' : Math.abs(c13.chg) < 3 ? 'ทรงตัว' : c13.chg > 0 ? `▲ ${c13.chg.toFixed(0)}% ใน 24 ชม.` : `▼ ${(-c13.chg).toFixed(0)}% ใน 24 ชม.`}`
+      + (rain ? ` · ฝนหนัก ≥35 มม. ${heavyCount()} สถานี` : '');
+    renderStatus();
+  }
+}
+
+// ---------- ฝน ----------
+const heavyCount = () => rain.filter(r => NEAR.includes(r.provCode) && r.r24 > 35).length;
+async function loadRain(){
+  try { rain = await fetchRain(); } catch (e) { $('rainTop').innerHTML = '<li class="err">โหลดข้อมูลฝนไม่ได้</li>'; return; }
+  const top = rain.filter(r => NEAR.includes(r.provCode)).sort((a, b) => b.r24 - a.r24).slice(0, 5);
+  $('rainTop').innerHTML = top.map(r => `<li><b class="num">${r.r24.toFixed(0)} มม.</b> ${rainLevel(r.r24).t} · ${esc(r.name)} <span class="meta">อ.${esc(r.amphoe)} จ.${esc(r.prov)}</span></li>`).join('')
+    || '<li class="hint">ไม่มีฝนในพื้นที่</li>';
+  if (statusExtra && !statusExtra.includes('ฝนหนัก')) { statusExtra += ` · ฝนหนัก ≥35 มม. ${heavyCount()} สถานี`; renderStatus(); }
+  renderRain();
+}
+function renderRain(){
+  rainLayer.clearLayers();
+  $('rainLegend').hidden = !$('rainOn').checked;
+  if (!rain || !$('rainOn').checked) return;
+  const v = $('scope').value, codes = v === 'all' ? null : v === 'ayt' ? NEAR : v === 'central' ? CENTRAL : [v];
+  for (const r of rain) {
+    if (r.r24 < 10 || (codes && !codes.includes(r.provCode))) continue;
+    const lv = rainLevel(r.r24);
+    L.circleMarker([r.lat, r.lng], {pane: 'rain', renderer: rainRenderer, radius: Math.min(4 + Math.sqrt(r.r24) * .9, 16),
+      weight: 1, color: css('--surface'), fillColor: css('--' + lv.k), fillOpacity: .85})
+      .bindPopup(`<b>ฝน 24 ชม. ${r.r24.toFixed(1)} มม.</b> (${lv.t})<br>${esc(r.name)}<br>อ.${esc(r.amphoe)} จ.${esc(r.prov)}<br><span class="meta">${esc(r.time)}</span>`)
+      .addTo(rainLayer);
+  }
+}
+
+// ---------- เขื่อน ----------
+async function loadDams(){
+  let dams;
+  try { dams = await fetchDams(); } catch (e) { $('dams').innerHTML = '<p class="err">โหลดข้อมูลเขื่อนไม่ได้</p>'; return; }
+  $('dams').innerHTML = dams.map(d => {
+    const k = d.pct >= 90 ? 'lv5' : d.pct >= 80 ? 'lv4' : 'accent';
+    const note = d.pct >= 90 ? 'ใกล้เต็ม อาจต้องเพิ่มการระบายน้ำ'
+      : d.inflow != null && d.released != null && d.inflow > d.released * 2 ? 'รับน้ำมากกว่าปล่อย กำลังเก็บน้ำไว้ ช่วยชะลอน้ำท้ายเขื่อน'
+      : d.released != null && d.inflow != null && d.released > d.inflow ? 'ปล่อยน้ำมากกว่ารับ' : '';
+    return `<div class="dam"><b>${esc(d.name)}</b>
+      <div class="meter" role="meter" aria-valuenow="${d.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="ความจุ"><i style="width:${Math.min(d.pct ?? 0, 100)}%;background:var(--${k})"></i></div>
+      <span class="num">${d.pct != null ? d.pct.toFixed(0) : '-'}% ของความจุ</span>
+      <span class="meta">เข้า ${d.inflow ?? '-'} · ปล่อย ${d.released ?? '-'} ล้าน ลบ.ม./วัน</span>
+      ${note ? `<span class="meta">${note}</span>` : ''}</div>`;
+  }).join('') + `<p class="hint" style="grid-column:1/-1">ข้อมูลวันที่ ${esc(dams[0]?.date || '-')}</p>`;
 }
 
 function scoped(){
@@ -213,7 +338,8 @@ function renderStatus(){
              crit.length ? `อยุธยา: ระดับวิกฤต ${crit.length} สถานี` : `อยุธยา: ${lv.t}`;
   el.innerHTML = `<strong>${head}</strong>
     <span>สูงสุดที่ <b>${esc(worst.name)}</b> (อ.${esc(worst.amphoe)}) <span class="num">${worst.pct.toFixed(0)}%</span> ของตลิ่ง ·
-    วิกฤต 90–100% อีก ${crit.length} สถานี · น้ำกำลังขึ้น ${rising} จาก ${a.length} สถานี</span>`;
+    วิกฤต 90–100% อีก ${crit.length} สถานี · น้ำกำลังขึ้น ${rising} จาก ${a.length} สถานี</span>
+    ${statusExtra ? `<span>${statusExtra}</span>` : ''}`;
 }
 
 function renderMap(list){
@@ -306,7 +432,12 @@ const map = L.map('map').setView([14.35, 100.55], 9);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   maxZoom: 18, attribution: '&copy; OpenStreetMap'
 }).addTo(map);
+map.createPane('rain').style.zIndex = 390;
+const rainRenderer = L.svg({pane: 'rain'});
+rainLayer.addTo(map);
 markers.addTo(map);
+$('rainOn').addEventListener('change', () => { try { localStorage.setItem('wl-rain', $('rainOn').checked ? '1' : ''); } catch (e) {} renderRain(); });
+try { $('rainOn').checked = localStorage.getItem('wl-rain') === '1'; } catch (e) {}
 map.on('click', e => setMe(e.latlng.lat, e.latlng.lng));
 
 $('rows').addEventListener('click', e => {
@@ -323,7 +454,7 @@ document.addEventListener('click', e => {
 });
 $('scope').addEventListener('change', () => {
   try { localStorage.setItem('wl-scope', $('scope').value); } catch (e) {}
-  render();
+  render(); renderRain();
   const b = markers.getLayers().map(m => m.getLatLng());
   if (b.length) map.fitBounds(L.latLngBounds(b), {padding: [20, 20]});
 });
