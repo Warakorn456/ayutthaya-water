@@ -59,6 +59,67 @@ async function fetchStations(){
   return null;
 }
 
+// ---------- ประวัติย้อนหลังรายชั่วโมง ----------
+const API_BASE = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public';
+const ymd = d => d.toLocaleDateString('sv-SE', {timeZone: 'Asia/Bangkok'});
+const histCache = new Map();
+// {points: [{t: ms, v: ม.รทก.|null, q: m³/s|null}], minBank}
+function fetchHistory(id, days = 7){
+  const key = id + '/' + days, hit = histCache.get(key);
+  if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.p;
+  const p = (async () => {
+    const end = new Date(), start = new Date(Date.now() - days * 864e5);
+    const r = await fetch(`${API_BASE}/waterlevel_graph?station_type=tele_waterlevel&station_id=${encodeURIComponent(id)}&start_date=${ymd(start)}&end_date=${ymd(end)}`);
+    if (!r.ok) throw new Error('history ' + r.status);
+    const d = (await r.json())?.data || {};
+    const points = (d.graph_data || []).map(g => ({
+      t: Date.parse(String(g.datetime).replace(' ', 'T') + ':00+07:00'), v: num(g.value), q: num(g.discharge)
+    })).filter(g => !isNaN(g.t) && (g.v != null || g.q != null));
+    return {points, minBank: num(d.min_bank)};
+  })();
+  p.catch(() => histCache.delete(key));
+  histCache.set(key, {at: Date.now(), p});
+  return p;
+}
+
+// ความชัน (ม./ชม.) ของ key ในช่วง `hours` ล่าสุด ด้วย linear regression
+function slope(points, hours, key = 'v'){
+  const pts = points.filter(p => p[key] != null);
+  if (pts.length < 3) return null;
+  const tEnd = pts[pts.length - 1].t, sel = pts.filter(p => p.t >= tEnd - hours * 36e5);
+  if (sel.length < 3) return null;
+  const xs = sel.map(p => (p.t - tEnd) / 36e5), ys = sel.map(p => p[key]);
+  const mx = xs.reduce((a, b) => a + b) / xs.length, my = ys.reduce((a, b) => a + b) / ys.length;
+  let sxy = 0, sxx = 0;
+  for (let i = 0; i < xs.length; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; }
+  return sxx ? sxy / sxx : null;
+}
+// ค่าที่ใกล้เวลา t ที่สุด (ภายใน 3 ชม.)
+function valueAt(points, t, key = 'v'){
+  let best = null;
+  for (const p of points) if (p[key] != null && Math.abs(p.t - t) <= 3 * 36e5 && (!best || Math.abs(p.t - t) < Math.abs(best.t - t))) best = p;
+  return best ? best[key] : null;
+}
+
+// คาดการณ์จากแนวโน้มล่าสุด
+function forecast(points, bank){
+  const pts = points.filter(p => p.v != null);
+  if (!pts.length) return null;
+  const last = pts[pts.length - 1];
+  const r6 = slope(pts, 6), r24 = slope(pts, 24);
+  const rate = r6 ?? r24;                        // ม./ชม.
+  const cm = rate == null ? null : rate * 100;   // ซม./ชม.
+  const v24 = valueAt(pts, last.t - 24 * 36e5);
+  const uncertain = r6 != null && r24 != null &&
+    ((Math.sign(r6) !== Math.sign(r24) && Math.abs(r6) * 100 > .3 && Math.abs(r24) * 100 > .3) || Math.abs(r6 - r24) * 100 > 1.5);
+  const trend = cm == null ? 'unknown' : cm > .3 ? 'up' : cm < -.3 ? 'down' : 'steady';
+  const gap = bank != null ? bank - last.v : null;
+  const hoursToBank = trend === 'up' && gap != null && gap > 0 ? gap / rate : null;
+  const peak = pts.reduce((m, p) => p.v > m.v ? p : m, pts[0]);
+  return {v: last.v, t: last.t, cm, cm24: r24 == null ? null : r24 * 100, change24: v24 == null ? null : last.v - v24,
+          trend, uncertain, bank, gap, over: gap != null && gap < 0 ? -gap : 0, hoursToBank, peak};
+}
+
 function updatedText(res){
   if (!res) return '<span class="err">โหลดข้อมูลไม่ได้ ตรวจอินเทอร์เน็ต แล้วกดรีเฟรช (หรือรัน python proxy.py)</span>';
   if (res.fromCache) return '<span class="err">ต่อเน็ตไม่ได้ แสดงข้อมูลเก่าจาก ' + new Date(res.at).toLocaleString('th-TH') + '</span>';

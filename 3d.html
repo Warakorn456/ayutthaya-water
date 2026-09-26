@@ -100,6 +100,7 @@ svg.section .tick{fill:var(--muted)}
           <select id="station"></select>
         </div>
         <div id="section"><p class="hint">กำลังโหลด…</p></div>
+        <div id="hist"></div>
       </section>
 
       <section class="panel">
@@ -147,6 +148,7 @@ svg.section .tick{fill:var(--muted)}
 
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.21.0/dist/maplibre-gl.js"></script>
 <script src="data.js"></script>
+<script src="ui.js"></script>
 <script>
 const DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
 let stations = [], current = null, floodCenter = null, floodBias = 1.2, meMarker = null, meResult = null;
@@ -349,6 +351,7 @@ async function selectStation(s, fly){
   renderMapData();
   if (fly) map.flyTo({center: [s.lng, s.lat], zoom: 12.3, pitch: 62, essential: true});
   $('section').innerHTML = sectionHtml(s, undefined);
+  renderStationHistory($('hist'), s);
   const [raw, bias] = await Promise.all([landOf(s), biasAt(s.lat, s.lng)]);
   if (current !== s) return;
   floodBias = bias;

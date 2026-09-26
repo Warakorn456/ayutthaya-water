@@ -10,7 +10,7 @@
 <style>
 :root{
   --bg:#eef3f5; --surface:#ffffff; --ink:#0f2530; --muted:#557180; --line:#d3dfe4;
-  --accent:#0b6e8a;
+  --accent:#0b6e8a; --water:#2f7fd0;
   --lv0:#8a9aa3; --lv1:#2f8fce; --lv2:#2e9e5b; --lv3:#d9a300; --lv4:#e0701a; --lv5:#d12f2f;
   --lv5-bg:#fde7e5; --lv4-bg:#fdefe2; --lv3-bg:#fbf4d9; --ok-bg:#e3f4ea;
   color-scheme:light;
@@ -18,13 +18,13 @@
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --bg:#0c1a21; --surface:#132831; --ink:#e3eef2; --muted:#8fa9b5; --line:#24404c;
-    --accent:#4fb6d4; --lv5-bg:#3a1a1a; --lv4-bg:#3a2614; --lv3-bg:#35300f; --ok-bg:#12301f;
+    --accent:#4fb6d4; --water:#4a9be6; --lv5-bg:#3a1a1a; --lv4-bg:#3a2614; --lv3-bg:#35300f; --ok-bg:#12301f;
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
   --bg:#0c1a21; --surface:#132831; --ink:#e3eef2; --muted:#8fa9b5; --line:#24404c;
-  --accent:#4fb6d4; --lv5-bg:#3a1a1a; --lv4-bg:#3a2614; --lv3-bg:#35300f; --ok-bg:#12301f;
+  --accent:#4fb6d4; --water:#4a9be6; --lv5-bg:#3a1a1a; --lv4-bg:#3a2614; --lv3-bg:#35300f; --ok-bg:#12301f;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
@@ -37,6 +37,8 @@ h2{font-size:1.05rem}
 a{color:var(--accent)}
 header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
 .meta{color:var(--muted);font-size:.85rem}
+button.link{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;font:inherit;cursor:pointer}
+.dhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
 a.btn{display:inline-block;text-decoration:none;font-weight:500;border:1px solid var(--accent);border-radius:8px;padding:6px 12px}
 button,select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
 button:hover{border-color:var(--accent)}
@@ -120,6 +122,11 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
     </section>
   </div>
 
+  <section class="panel" id="detail" hidden>
+    <div class="dhead"><h2 id="detailTitle">รายละเอียดสถานี</h2><a class="btn" id="detail3d" href="3d.html">ดูแบบ 3D / ภาพตัดขวาง</a></div>
+    <div id="detailBody"></div>
+  </section>
+
   <section class="panel">
     <h2>ฉุกเฉิน / อพยพ</h2>
     <div class="phones">
@@ -159,8 +166,18 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="data.js"></script>
+<script src="ui.js"></script>
 <script>
-let stations = [], me = null, meMarker = null, markers = L.layerGroup();
+let stations = [], me = null, meMarker = null, markers = L.layerGroup(), detailId = null;
+
+function openDetail(s, scroll){
+  detailId = s.id;
+  $('detail').hidden = false;
+  $('detailTitle').textContent = `${s.name} · อ.${s.amphoe} จ.${s.prov}`;
+  $('detail3d').href = '3d.html#' + s.id;
+  renderStationHistory($('detailBody'), s);
+  if (scroll) $('detail').scrollIntoView({behavior: 'smooth', block: 'start'});
+}
 
 async function load(){
   $('refresh').disabled = true;
@@ -171,6 +188,8 @@ async function load(){
   if (!res) return;
   stations = res.stations;
   render();
+  const d = detailId && stations.find(s => s.id === detailId);
+  if (d) openDetail(d, false);
 }
 
 function scoped(){
@@ -213,7 +232,8 @@ function popup(s){
     <span class="num">${s.pct != null ? s.pct.toFixed(1) + '%' : '-'}</span><br>
     น้ำ <span class="num">${fmtM(s.msl)}</span> · ตลิ่ง <span class="num">${fmtM(s.bank)}</span>${validGround(s) ? ` · ท้องน้ำ <span class="num">${fmtM(s.ground)}</span>` : ''} ม.รทก.<br>
     ${trendHtml(s)} · ${esc(s.time)}<br>
-    <a href="3d.html#${esc(s.id)}">ดูแบบ 3D / ภาพตัดขวาง</a>`;
+    <button type="button" class="link" data-graph="${esc(s.id)}">กราฟ 7 วัน + คาดการณ์</button> ·
+    <a href="3d.html#${esc(s.id)}">ดูแบบ 3D</a>`;
 }
 
 function renderTable(list){
@@ -254,13 +274,19 @@ function renderMe(){
       <strong>${lv.t}</strong><span>${advice}</span></div>
     <p class="hint">สถานีใกล้คุณที่สุด</p>
     <ul class="list">${near.map(s => `<li><span><b>${esc(s.name)}</b> <span class="pill num" style="background:var(--${level(s.pct).k})">${s.pct.toFixed(0)}%</span></span>
-      <span class="meta num">ห่าง ${s.d.toFixed(1)} กม. · ${trendHtml(s)} · อ.${esc(s.amphoe)} จ.${esc(s.prov)}</span></li>`).join('')}</ul>
+      <span class="meta num">ห่าง ${s.d.toFixed(1)} กม. · ${trendHtml(s)} · อ.${esc(s.amphoe)} จ.${esc(s.prov)}</span>
+      <button type="button" class="link" data-graph="${esc(s.id)}">กราฟ 7 วัน</button></li>`).join('')}</ul>
+    <p class="hint">คาดการณ์ที่ ${esc(near[0].name)}</p>
+    <div id="meFc"></div>
     <p class="hint">พื้นที่ที่แม่น้ำยังไม่เต็มตลิ่ง ในรัศมี ${R} กม. (เรียงจากแม่น้ำต่ำสุด) ดูความสูงพื้นดินจริงได้ในหน้า 3D</p>
     ${safe.length ? `<ul class="list">${safe.map(s => `<li><span><b>อ.${esc(s.amphoe)} จ.${esc(s.prov)}</b> <span class="pill num" style="background:var(--${level(s.pct).k})">${s.pct.toFixed(0)}%</span></span>
       <span class="meta num">ไปทาง${bearing(me.lat, me.lng, s.lat, s.lng)} ${s.d.toFixed(0)} กม. · สถานี ${esc(s.name)}</span>
       <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}" target="_blank" rel="noopener">นำทางด้วย Google Maps</a></li>`).join('')}</ul>`
       : `<p class="err">ไม่พบพื้นที่ที่แม่น้ำต่ำกว่า 70% ในรัศมี ${R} กม. ลองขยายรัศมี</p>`}
     <p class="hint">รายการนี้ดูจากระดับน้ำในแม่น้ำ/คลองเท่านั้น ไม่ใช่ศูนย์อพยพ ถนนบางสายอาจถูกน้ำตัด ให้ยืนยันกับ 1784 หรืออำเภอก่อนเดินทาง</p>`;
+  const fcEl = $('meFc'), s0 = near[0];
+  fetchHistory(s0.id).then(h => { if ($('meFc') === fcEl) fcEl.innerHTML = forecastHtml(forecast(h.points, s0.bank ?? h.minBank)); })
+    .catch(() => { fcEl.innerHTML = '<p class="hint">โหลดข้อมูลคาดการณ์ไม่ได้</p>'; });
 }
 
 function setMe(lat, lng){
@@ -288,7 +314,12 @@ $('rows').addEventListener('click', e => {
   const s = stations[+tr.dataset.i];
   map.setView([s.lat, s.lng], 12);
   L.popup().setLatLng([s.lat, s.lng]).setContent(popup(s)).openOn(map);
-  $('map').scrollIntoView({behavior: 'smooth', block: 'center'});
+  openDetail(s, true);
+});
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-graph]'); if (!b) return;
+  const s = stations.find(x => x.id === b.dataset.graph);
+  if (s) openDetail(s, true);
 });
 $('scope').addEventListener('change', () => {
   try { localStorage.setItem('wl-scope', $('scope').value); } catch (e) {}
