@@ -15,127 +15,233 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
 :root{
-  --bg:#eef3f5; --surface:#ffffff; --ink:#0f2530; --muted:#557180; --line:#d3dfe4;
+  --bg:#eef3f5; --surface:#ffffff; --ink:#0f2530; --muted:#4f6b7a; --line:#d3dfe4;
   --accent:#0b6e8a; --water:#2f7fd0;
   --lv0:#8a9aa3; --lv1:#2f8fce; --lv2:#2e9e5b; --lv3:#d9a300; --lv4:#e0701a; --lv5:#d12f2f;
   --lv5-bg:#fde7e5; --lv4-bg:#fdefe2; --lv3-bg:#fbf4d9; --ok-bg:#e3f4ea;
   --r1:#bcd8f0; --r2:#6ea6dc; --r3:#2d68b4; --r4:#15306e;
+  --nav-h:64px;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --bg:#0c1a21; --surface:#132831; --ink:#e3eef2; --muted:#8fa9b5; --line:#24404c;
+    --bg:#0c1a21; --surface:#132831; --ink:#e3eef2; --muted:#9bb3be; --line:#24404c;
     --accent:#4fb6d4; --water:#4a9be6; --lv5-bg:#3a1a1a; --lv4-bg:#3a2614; --lv3-bg:#35300f; --ok-bg:#12301f;
     --r1:#35577a; --r2:#4f86c2; --r3:#86b8ee; --r4:#d4e8ff;
     color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0c1a21; --surface:#132831; --ink:#e3eef2; --muted:#8fa9b5; --line:#24404c;
+  --bg:#0c1a21; --surface:#132831; --ink:#e3eef2; --muted:#9bb3be; --line:#24404c;
   --accent:#4fb6d4; --water:#4a9be6; --lv5-bg:#3a1a1a; --lv4-bg:#3a2614; --lv3-bg:#35300f; --ok-bg:#12301f;
   --r1:#35577a; --r2:#4f86c2; --r3:#86b8ee; --r4:#d4e8ff;
   color-scheme:dark;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "IBM Plex Sans Thai",Tahoma,"Leelawadee UI",sans-serif}
-.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:16px 40px;display:grid;gap:16px}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "IBM Plex Sans Thai",Tahoma,"Leelawadee UI",sans-serif;
+  padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px))}
+.wrap{max-width:1100px;margin:0 auto;padding-inline:16px;padding-block:12px 24px;display:grid;gap:16px}
 .num{font-family:"IBM Plex Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
-h1,h2{margin:0;text-wrap:balance}
-h1{font-size:1.5rem;line-height:1.2}
-h2{font-size:1.05rem}
+h1,h2,h3{margin:0;text-wrap:balance;line-height:1.3}
+h1{font-size:1.35rem}
+h2{font-size:1.15rem}
+h3{font-size:1rem}
+p{margin:0}
 a{color:var(--accent)}
-header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
-.meta{color:var(--muted);font-size:.85rem}
-h3{margin:0;font-size:.95rem}
+.meta{color:var(--muted);font-size:.9rem}
+.hint{color:var(--muted);font-size:.9rem}
+.err{color:var(--lv5);font-weight:500}
+.up{color:var(--lv5)} .down{color:var(--lv2)}
+
+/* ปุ่ม: ใหญ่พอให้กดง่ายบนมือถือ */
+button,select,input{font:inherit;color:var(--ink)}
+button,select,a.btn{min-height:44px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 14px;cursor:pointer}
+a.btn{display:inline-flex;align-items:center;text-decoration:none;font-weight:500;color:var(--accent);border-color:var(--accent)}
+button:hover,a.btn:hover{border-color:var(--accent)}
+button:focus-visible,select:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:500}
+button.link{background:none;border:0;padding:0;min-height:0;color:var(--accent);text-decoration:underline;cursor:pointer}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:grid;gap:12px;min-width:0}
+.panel>*,.tab>*{min-width:0}
+
+/* ส่วนหัว */
+header.top{display:flex;gap:12px;align-items:center;justify-content:space-between}
+header.top .meta{font-size:.85rem}
+#refresh{display:inline-flex;gap:6px;align-items:center}
+#refresh svg{width:18px;height:18px}
+
+/* แท็บ: ล่างจอบนมือถือ, บนจอบนคอม */
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:1000;display:grid;grid-template-columns:repeat(5,1fr);
+  background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom, 0px)}
+.tabs button{border:0;border-radius:0;background:none;display:grid;justify-items:center;align-content:center;gap:2px;
+  min-height:var(--nav-h);padding:6px 2px;font-size:.78rem;color:var(--muted)}
+.tabs button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tabs button[aria-selected="true"]{color:var(--accent);font-weight:700}
+@media (min-width:861px){
+  body{padding-bottom:0}
+  .tabs{position:sticky;top:0;bottom:auto;border:1px solid var(--line);border-radius:14px;padding:4px;
+    grid-template-columns:repeat(5,auto);justify-content:start;gap:4px}
+  .tabs button{grid-auto-flow:column;gap:8px;min-height:44px;padding:8px 16px;border-radius:10px;font-size:.95rem}
+  .tabs button[aria-selected="true"]{background:color-mix(in srgb,var(--accent) 12%,transparent)}
+}
+.tab{display:grid;gap:16px}
+
+/* ป้ายระดับความเสี่ยง */
+.badge{display:inline-block;padding:2px 12px;border-radius:999px;font-weight:700;color:#fff;background:var(--lv0);white-space:nowrap}
+.badge.lv5{background:var(--lv5)} .badge.lv4{background:var(--lv4)} .badge.lv3{background:var(--lv3);color:#241b00}
+.badge.lv2{background:var(--lv2)} .badge.lv1{background:var(--lv1)}
+.pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:.85rem;font-weight:500;color:#fff;white-space:nowrap}
+.pill.lv3{color:#241b00}
+.eyebrow{font-size:.85rem;color:var(--muted);letter-spacing:.02em;font-weight:500}
+
+/* การ์ด "บ้านของคุณ" */
+.hero{border-radius:16px;padding:18px 16px;display:grid;gap:10px;background:var(--st-bg,var(--surface));border:2px solid var(--st,var(--line))}
+.hero .row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.hero .badge{font-size:1.6rem;padding:4px 18px}
+.hero .big{font-size:1.15rem;font-weight:500}
+.fcline{font-weight:500}
+ul.todo{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+ul.todo label{display:grid;grid-template-columns:24px 1fr;gap:8px;align-items:start;cursor:pointer;min-height:32px}
+ul.todo input{width:22px;height:22px;margin:3px 0 0;accent-color:var(--st,var(--accent))}
+ul.todo input:checked + span{text-decoration:line-through;color:var(--muted)}
+
+/* ภาพรวม */
+.status{border-radius:14px;padding:16px;display:grid;gap:12px;background:var(--surface);border:1px solid var(--line)}
+.status .row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.tile{border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;gap:2px;align-content:start}
+.tile b{font-size:1.7rem;line-height:1.1}
+.tile span{font-size:.85rem;color:var(--muted);line-height:1.35}
+.tile.alert b{color:var(--lv5)}
+
+/* เบอร์ฉุกเฉิน */
+.phones{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.phone{border:1px solid var(--line);border-radius:12px;padding:10px 12px;text-decoration:none;color:var(--ink);display:grid;min-height:64px}
+.phone b{font-size:1.5rem;color:var(--lv5);line-height:1.2}
+.phone span{font-size:.85rem;color:var(--muted)}
+details{border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-weight:500;min-height:32px}
+ul.tips{margin:8px 0 0;padding-left:1.2em;display:grid;gap:6px}
+
+/* แผนที่ */
+#map{height:62vh;min-height:360px;max-height:640px;border-radius:12px;z-index:0}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.88rem;color:var(--muted)}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.toggle{display:inline-flex;gap:8px;align-items:center;cursor:pointer;min-height:44px}
+.toggle input{width:20px;height:20px}
+.banner{background:var(--accent);color:#fff;border-radius:10px;padding:10px 14px;font-weight:500;display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.banner button{min-height:36px;padding:4px 12px}
+.list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.list li{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:2px}
+
+/* น้ำเหนือ */
 .flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:0;padding:0;list-style:none}
-.node{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;gap:2px;min-width:0}
-.node .code{font-size:.75rem;color:var(--muted);letter-spacing:.03em}
-.node .q{font-size:1.15rem;font-weight:700}
+.node{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:2px;min-width:0}
+.node .code{font-size:.8rem;color:var(--muted)}
+.node .q{font-size:1.2rem;font-weight:700}
 .node svg{width:100%;height:28px;display:block}
 .node svg path{fill:none;stroke:var(--muted);stroke-width:1.5}
-.node.ayt{border-color:var(--accent)}
+.node.ayt{border-color:var(--accent);border-width:2px}
 .split{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
 .dams{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
-.dam{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;gap:4px}
+.dam{border:1px solid var(--line);border-radius:10px;padding:10px;display:grid;gap:4px}
 .meter{height:8px;border-radius:4px;background:var(--line);overflow:hidden}
 .meter i{display:block;height:100%;border-radius:4px}
-ol.rain{margin:0;padding-left:1.4em;display:grid;gap:4px}
-.toggle{display:inline-flex;gap:6px;align-items:center;font-size:.85rem;cursor:pointer}
-.alertform{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
-.field{display:grid;gap:4px;min-width:0}
-.field label{font-size:.82rem;color:var(--muted)}
-.field select,.field input{width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
-button.link{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;font:inherit;cursor:pointer}
-.dhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
-a.btn{display:inline-block;text-decoration:none;font-weight:500;border:1px solid var(--accent);border-radius:8px;padding:6px 12px}
-button,select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
-button:hover{border-color:var(--accent)}
-button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.status{border-radius:12px;padding:14px 16px;display:grid;gap:4px;border-left:6px solid var(--st,var(--lv0));background:var(--st-bg,var(--surface))}
-.status strong{font-size:1.2rem}
-.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:10px;min-width:0}
-.grid2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
-@media (max-width:860px){.grid2{grid-template-columns:minmax(0,1fr)}}
-#map{height:460px;border-radius:8px;z-index:0}
-@media (max-width:600px){#map{height:340px}}
-.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted)}
-.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle}
-.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.78rem;font-weight:500;color:#fff;white-space:nowrap}
+ol.rain{margin:0;padding-left:1.4em;display:grid;gap:6px}
+
+/* ตาราง */
+.search{width:100%;min-height:44px;border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:var(--surface)}
 .tablebox{overflow-x:auto}
-table{border-collapse:collapse;width:100%;font-size:.88rem}
-th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-th{color:var(--muted);font-weight:500;font-size:.78rem;letter-spacing:.02em;white-space:nowrap}
+table{border-collapse:collapse;width:100%;font-size:.95rem}
+th,td{padding:10px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--muted);font-weight:500;font-size:.85rem;white-space:nowrap}
 td.r,th.r{text-align:right}
 tr.row-click{cursor:pointer}
 tr.row-click:hover td{background:color-mix(in srgb,var(--accent) 7%,transparent)}
-.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
-.hint{color:var(--muted);font-size:.82rem;margin:0}
-.list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
-.list li{border:1px solid var(--line);border-radius:8px;padding:8px 10px;display:grid;gap:2px}
-.phones{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
-.phone{border:1px solid var(--line);border-radius:8px;padding:8px 10px;text-decoration:none;color:var(--ink);display:grid}
-.phone b{font-size:1.35rem;color:var(--lv5)}
-.phone span{font-size:.8rem;color:var(--muted)}
-ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
-.err{color:var(--lv5);font-weight:500}
-.up{color:var(--lv5)} .down{color:var(--lv2)}
-@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+@media (max-width:600px){.wide{display:none}}
+
+/* แจ้งเตือน */
+.alertform{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.field{display:grid;gap:4px;min-width:0}
+.field label{font-size:.9rem;color:var(--muted)}
+.field select,.field input{width:100%;min-height:44px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+.dhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
+  <header class="top">
     <div>
       <h1>ระดับน้ำอยุธยา</h1>
-      <div class="meta">ข้อมูลจาก <a href="https://www.thaiwater.net" target="_blank" rel="noopener">คลังข้อมูลน้ำแห่งชาติ (thaiwater.net)</a> · <span id="updated">กำลังโหลด…</span></div>
+      <div class="meta"><span id="updated">กำลังโหลด…</span> · ข้อมูลจาก <a href="https://www.thaiwater.net" target="_blank" rel="noopener">thaiwater.net</a></div>
     </div>
-    <div class="controls">
-      <label for="scope" class="meta">แสดง</label>
-      <select id="scope">
-        <option value="ayt">อยุธยา + จังหวัดต้นน้ำ</option>
-        <option value="14">อยุธยาเท่านั้น</option>
-        <option value="central">ภาคกลางทั้งหมด</option>
-        <option value="all">ทั้งประเทศ</option>
-      </select>
-      <a class="btn" href="3d.html">ดูแบบ 3D</a>
-      <button id="refresh" class="primary" type="button">รีเฟรช</button>
-    </div>
+    <button id="refresh" type="button" aria-label="รีเฟรชข้อมูล">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>รีเฟรช
+    </button>
   </header>
 
-  <div id="status" class="status"><strong>กำลังโหลดข้อมูล…</strong></div>
+  <nav class="tabs" role="tablist" aria-label="เมนู">
+    <button type="button" role="tab" data-tab="home" aria-selected="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>สรุป</button>
+    <button type="button" role="tab" data-tab="map" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>แผนที่</button>
+    <button type="button" role="tab" data-tab="up" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M3 20c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0"/></svg>น้ำเหนือ</button>
+    <button type="button" role="tab" data-tab="list" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>สถานี</button>
+    <button type="button" role="tab" data-tab="alert" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></svg>แจ้งเตือน</button>
+  </nav>
 
-  <div class="grid2">
+  <!-- ===== สรุป ===== -->
+  <section class="tab" id="tab-home" role="tabpanel">
+    <div id="homeCard" class="hero"><p class="hint">กำลังโหลดข้อมูล…</p></div>
+    <div id="status" class="status"><p class="hint">กำลังโหลดภาพรวม…</p></div>
+    <section class="panel" id="outlook"><h2>อีก 1–2 วันข้างหน้า</h2><p class="hint">กำลังโหลดข้อมูลน้ำจากทางเหนือ…</p></section>
     <section class="panel">
-      <div class="dhead"><h2>แผนที่สถานีวัดระดับน้ำ</h2>
-        <label class="toggle" for="rainOn"><input type="checkbox" id="rainOn"> แสดงฝน 24 ชม.</label></div>
+      <h2>เบอร์ฉุกเฉิน</h2>
+      <div class="phones">
+        <a class="phone" href="tel:1784"><b class="num">1784</b><span>ปภ. ถามศูนย์อพยพ / ขอความช่วยเหลือ</span></a>
+        <a class="phone" href="tel:1669"><b class="num">1669</b><span>เจ็บป่วยฉุกเฉิน</span></a>
+        <a class="phone" href="tel:1460"><b class="num">1460</b><span>กรมชลประทาน</span></a>
+        <a class="phone" href="tel:191"><b class="num">191</b><span>ตำรวจ</span></a>
+        <a class="phone" href="tel:1146"><b class="num">1146</b><span>ถนนขาด (ทางหลวงชนบท)</span></a>
+        <a class="phone" href="tel:1586"><b class="num">1586</b><span>กรมทางหลวง</span></a>
+      </div>
+      <details>
+        <summary>สิ่งที่ควรรู้ก่อนอพยพ</summary>
+        <ul class="tips">
+          <li>ถามศูนย์อพยพที่ใกล้ที่สุดจาก <b>1784</b>, อำเภอ หรือ อบต./เทศบาล ก่อนออกเดินทาง</li>
+          <li>ไปที่สูง เช่น อาคารสูงที่มั่นคง หรือถนนสายหลักที่ยกสูง</li>
+          <li>ห้ามขับรถหรือเดินลุยน้ำไหลเชี่ยว น้ำลึกแค่ 30 ซม. ก็พัดรถได้</li>
+          <li>ตัดไฟที่เบรกเกอร์ก่อนน้ำเข้าบ้าน ย้ายเอกสาร ยา และของสำคัญขึ้นที่สูง</li>
+          <li>ดูพื้นที่น้ำท่วมจริงจากดาวเทียมที่ <a href="https://flood.gistda.or.th" target="_blank" rel="noopener">GISTDA</a></li>
+        </ul>
+      </details>
+    </section>
+  </section>
+
+  <!-- ===== แผนที่ ===== -->
+  <section class="tab" id="tab-map" role="tabpanel" hidden>
+    <div id="pickBanner" class="banner" hidden><span>แตะบนแผนที่ตรงบ้านของคุณ</span><button type="button" id="pickCancel">ยกเลิก</button></div>
+    <section class="panel">
+      <div class="controls">
+        <button id="pickHome" type="button" class="primary">ปักหมุดบ้าน</button>
+        <button id="locate" type="button">ใช้ตำแหน่งปัจจุบัน</button>
+        <label class="toggle" for="rainOn"><input type="checkbox" id="rainOn"> แสดงฝน 24 ชม.</label>
+        <a class="btn" href="3d.html">ดูแบบ 3D</a>
+      </div>
       <div id="map"></div>
       <div class="legend">
-        <span><i class="dot" style="background:var(--lv5)"></i>ล้นตลิ่ง &gt;100%</span>
-        <span><i class="dot" style="background:var(--lv4)"></i>วิกฤต 90–100%</span>
+        <span>สีหมุด = น้ำเต็มตลิ่งกี่ %:</span>
+        <span><i class="dot" style="background:var(--lv5)"></i>ล้นตลิ่ง</span>
+        <span><i class="dot" style="background:var(--lv4)"></i>เกือบล้น 90–100%</span>
         <span><i class="dot" style="background:var(--lv3)"></i>เฝ้าระวัง 70–90%</span>
-        <span><i class="dot" style="background:var(--lv2)"></i>ปกติ 30–70%</span>
-        <span><i class="dot" style="background:var(--lv1)"></i>น้ำน้อย &lt;30%</span>
+        <span><i class="dot" style="background:var(--lv2)"></i>ปกติ</span>
+        <span><i class="dot" style="background:var(--lv1)"></i>น้ำน้อย</span>
       </div>
       <div class="legend" id="rainLegend" hidden>
         <span>ฝน 24 ชม.:</span>
@@ -143,87 +249,89 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
         <span><i class="dot" style="background:var(--r3)"></i>หนัก 35–90</span>
         <span><i class="dot" style="background:var(--r4)"></i>หนักมาก &gt;90</span>
       </div>
-      <p class="hint">% คือระดับน้ำเทียบกับความสูงตลิ่ง แตะที่แผนที่เพื่อปักตำแหน่งบ้านของคุณ</p>
-    </section>
-
-    <section class="panel">
-      <h2>ความเสี่ยงตรงที่คุณอยู่</h2>
       <div class="controls">
-        <button id="locate" type="button">ใช้ตำแหน่งของฉัน</button>
-        <label for="radius" class="meta">หาที่ปลอดภัยในรัศมี</label>
+        <label for="scope" class="meta">แสดงสถานี</label>
+        <select id="scope" class="scope-sel">
+          <option value="ayt">อยุธยา + จังหวัดต้นน้ำ</option>
+          <option value="14">อยุธยาเท่านั้น</option>
+          <option value="central">ภาคกลางทั้งหมด</option>
+          <option value="all">ทั้งประเทศ</option>
+        </select>
+      </div>
+    </section>
+    <section class="panel">
+      <h2>ที่ที่แม่น้ำยังไม่เต็มตลิ่ง ใกล้บ้านคุณ</h2>
+      <div class="controls">
+        <label for="radius" class="meta">ค้นหาในรัศมี</label>
         <select id="radius"><option>30</option><option selected>60</option><option>100</option><option>200</option></select><span class="meta">กม.</span>
       </div>
-      <div id="me"><p class="hint">กด "ใช้ตำแหน่งของฉัน" หรือแตะบนแผนที่ตรงบ้านของคุณ</p></div>
+      <div id="me"><p class="hint">ปักหมุดบ้านก่อน แล้วจะแสดงรายการที่นี่</p></div>
     </section>
-  </div>
-
-  <section class="panel" id="alerts">
-    <h2>แจ้งเตือน + ติดตั้งเป็นแอป</h2>
-    <div class="controls"><button id="installBtn" class="primary" type="button" hidden>ติดตั้งเป็นแอปบนมือถือ</button><span id="installHint" class="hint"></span></div>
-    <div class="alertform">
-      <div class="field"><label for="alertStation">สถานีที่ต้องการติดตาม</label><select id="alertStation"></select></div>
-      <div class="field"><label for="alertPct">เตือนเมื่อน้ำถึง (% ของตลิ่ง)</label><input id="alertPct" type="number" min="50" max="150" step="5" value="100" inputmode="numeric"></div>
-      <div class="field"><label for="alertRate">หรือเมื่อน้ำขึ้นเร็วกว่า (ซม./ชม., 0 = ปิด)</label><input id="alertRate" type="number" min="0" max="50" step="0.5" value="3" inputmode="decimal"></div>
-    </div>
-    <div class="controls">
-      <button id="alertOn" type="button">เปิดแจ้งเตือน</button>
-      <button id="alertTest" type="button" hidden>ทดสอบแจ้งเตือน</button>
-      <button id="alertOff" type="button" hidden>ปิดแจ้งเตือน</button>
-    </div>
-    <p id="alertStatus" class="hint"></p>
-    <p class="hint">ระบบจะตรวจทุก 10 นาทีตอนที่เปิดหน้านี้ไว้ และจะเตือนครั้งเดียวต่อเหตุการณ์ จนกว่าน้ำจะลดต่ำกว่าเกณฑ์ ถ้าติดตั้งเป็นแอปบน Android อาจตรวจเบื้องหลังให้ด้วยทุกราว 30 นาที แต่ไม่รับประกัน</p>
   </section>
 
-  <section class="panel" id="upstream">
-    <h2>น้ำจากต้นน้ำ: กำลังมาเพิ่มหรือลดลง</h2>
-    <div id="upSummary"><p class="hint">กำลังโหลดอัตราการไหล…</p></div>
-    <div id="rivers" style="display:grid;gap:12px"></div>
-    <p class="hint">เรียงจากต้นน้ำ (ซ้าย/บน) ลงมาถึงอยุธยา · หน่วย ลบ.ม./วินาที · % คือการเปลี่ยนแปลงเทียบกับ 24 ชม. ก่อน · กราฟเล็กคือ 7 วันล่าสุด</p>
+  <!-- ===== น้ำเหนือ ===== -->
+  <section class="tab" id="tab-up" role="tabpanel" hidden>
+    <section class="panel" id="upstream">
+      <h2>น้ำจากทางเหนือ กำลังมาเพิ่มหรือลดลง</h2>
+      <div id="upSummary"><p class="hint">กำลังโหลดอัตราการไหล…</p></div>
+      <div id="rivers" style="display:grid;gap:14px"></div>
+      <p class="hint">เรียงจากต้นน้ำลงมาถึงอยุธยา · ตัวเลขคือปริมาณน้ำที่ไหลผ่าน (ลูกบาศก์เมตรต่อวินาที) · % คือเทียบกับเมื่อวานเวลาเดียวกัน · เส้นเล็กคือ 7 วันล่าสุด</p>
+    </section>
     <div class="split">
-      <div style="display:grid;gap:8px"><h3>ฝนหนักสุด 24 ชม. (อยุธยาและจังหวัดต้นน้ำ)</h3><ol class="rain" id="rainTop"><li class="hint">กำลังโหลด…</li></ol></div>
-      <div style="display:grid;gap:8px"><h3>เขื่อนหลักเหนืออยุธยา</h3><div id="dams" class="dams"><p class="hint">กำลังโหลดข้อมูลเขื่อน (ไฟล์ใหญ่ อาจใช้เวลาสักครู่)…</p></div></div>
+      <section class="panel"><h2>ฝนหนักสุดใน 24 ชม.</h2><p class="hint">อยุธยาและจังหวัดใกล้เคียง</p><ol class="rain" id="rainTop"><li class="hint">กำลังโหลด…</li></ol></section>
+      <section class="panel"><h2>เขื่อนใหญ่เหนืออยุธยา</h2><div id="dams" class="dams"><p class="hint">กำลังโหลดข้อมูลเขื่อน (ไฟล์ใหญ่ อาจใช้เวลาสักครู่)…</p></div></section>
     </div>
   </section>
 
-  <section class="panel" id="detail" hidden>
-    <div class="dhead"><h2 id="detailTitle">รายละเอียดสถานี</h2><a class="btn" id="detail3d" href="3d.html">ดูแบบ 3D / ภาพตัดขวาง</a></div>
-    <div id="detailBody"></div>
+  <!-- ===== สถานี ===== -->
+  <section class="tab" id="tab-list" role="tabpanel" hidden>
+    <section class="panel" id="detail" hidden>
+      <div class="dhead"><h2 id="detailTitle">รายละเอียดสถานี</h2><a class="btn" id="detail3d" href="3d.html">ดูแบบ 3D</a></div>
+      <div id="detailBody"></div>
+    </section>
+    <section class="panel">
+      <h2 id="tabletitle">สถานีทั้งหมด</h2>
+      <div class="controls">
+        <input id="q" class="search" type="search" placeholder="ค้นหาชื่อสถานี อำเภอ หรือจังหวัด" aria-label="ค้นหาสถานี">
+        <label for="scope2" class="meta">แสดง</label>
+        <select id="scope2" class="scope-sel">
+          <option value="ayt">อยุธยา + จังหวัดต้นน้ำ</option>
+          <option value="14">อยุธยาเท่านั้น</option>
+          <option value="central">ภาคกลางทั้งหมด</option>
+          <option value="all">ทั้งประเทศ</option>
+        </select>
+      </div>
+      <div class="tablebox">
+        <table>
+          <thead><tr><th>สถานี</th><th class="r">เต็มตลิ่ง</th><th class="r">ขึ้น/ลง</th><th class="r wide">ห่างตลิ่ง (ม.)</th><th class="wide">เวลา</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <p class="hint">แตะที่สถานีเพื่อดูกราฟ 7 วันและคาดการณ์ · "ห่างตลิ่ง" ติดลบ แปลว่าน้ำล้นตลิ่งแล้ว</p>
+    </section>
   </section>
 
-  <section class="panel">
-    <h2>ฉุกเฉิน / อพยพ</h2>
-    <div class="phones">
-      <a class="phone" href="tel:1784"><b class="num">1784</b><span>ปภ. สายด่วนนิรภัย ศูนย์อพยพ</span></a>
-      <a class="phone" href="tel:1669"><b class="num">1669</b><span>เจ็บป่วยฉุกเฉิน</span></a>
-      <a class="phone" href="tel:1460"><b class="num">1460</b><span>กรมชลประทาน</span></a>
-      <a class="phone" href="tel:191"><b class="num">191</b><span>ตำรวจ</span></a>
-      <a class="phone" href="tel:1146"><b class="num">1146</b><span>กรมทางหลวงชนบท (ถนนขาด)</span></a>
-      <a class="phone" href="tel:1586"><b class="num">1586</b><span>กรมทางหลวง</span></a>
-    </div>
-    <ul class="tips">
-      <li>ศูนย์อพยพที่ถูกต้องที่สุดให้ถาม <b>1784</b>, อำเภอ หรือ อบต./เทศบาลของคุณ ก่อนออกเดินทาง</li>
-      <li>ไปที่สูง: อาคารสูงที่มั่นคง ถนนสายหลักที่ยกสูง หรือพื้นที่ที่แผนที่ด้านบนเป็นสีเขียว/ฟ้า</li>
-      <li>ตรวจเส้นทางก่อนขับ ห้ามขับรถหรือเดินลุยน้ำไหลเชี่ยว น้ำลึก 30 ซม. ก็พัดรถได้</li>
-      <li>ตัดไฟที่เบรกเกอร์ก่อนน้ำเข้าบ้าน ย้ายของสำคัญ เอกสาร และยาขึ้นที่สูง</li>
-      <li>นครราชสีมาและปทุมธานีบางจุดก็มีน้ำล้นตลิ่งเช่นกัน ดูแผนที่ก่อนเลือกปลายทาง</li>
-    </ul>
-    <p class="hint">
-      <a href="https://flood.gistda.or.th" target="_blank" rel="noopener">แผนที่น้ำท่วมจากดาวเทียม GISTDA</a> ·
-      <a href="https://www.thaiwater.net" target="_blank" rel="noopener">thaiwater.net</a> ·
-      <a href="https://www.rid.go.th" target="_blank" rel="noopener">กรมชลประทาน</a> ·
-      <a href="https://www.disaster.go.th" target="_blank" rel="noopener">ปภ.</a>
-    </p>
-  </section>
-
-  <section class="panel">
-    <h2 id="tabletitle">สถานีทั้งหมด</h2>
-    <div class="tablebox">
-      <table>
-        <thead><tr><th>สถานี</th><th>อำเภอ / จังหวัด</th><th class="r">% ตลิ่ง</th><th class="r">เหลือถึงตลิ่ง (ม.)</th><th class="r">แนวโน้ม</th><th>เวลา</th></tr></thead>
-        <tbody id="rows"></tbody>
-      </table>
-    </div>
-    <p class="hint">แนวโน้ม = ค่าที่วัดล่าสุดเทียบกับค่าก่อนหน้า (ซม.) ▲ น้ำขึ้น ▼ น้ำลง · ข้อมูลอัปเดตอัตโนมัติทุก 10 นาที</p>
+  <!-- ===== แจ้งเตือน ===== -->
+  <section class="tab" id="tab-alert" role="tabpanel" hidden>
+    <section class="panel" id="alerts">
+      <h2>แจ้งเตือนเมื่อน้ำขึ้น</h2>
+      <div class="alertform">
+        <div class="field"><label for="alertStation">สถานีที่ต้องการติดตาม</label><select id="alertStation"></select></div>
+        <div class="field"><label for="alertPct">เตือนเมื่อน้ำเต็มตลิ่งถึง (%)</label><input id="alertPct" type="number" min="50" max="150" step="5" value="100" inputmode="numeric"></div>
+        <div class="field"><label for="alertRate">หรือเมื่อน้ำขึ้นเร็วกว่า (ซม. ต่อชั่วโมง, 0 = ไม่ใช้)</label><input id="alertRate" type="number" min="0" max="50" step="0.5" value="3" inputmode="decimal"></div>
+      </div>
+      <div class="controls">
+        <button id="alertOn" type="button" class="primary">เปิดแจ้งเตือน</button>
+        <button id="alertTest" type="button" hidden>ทดสอบแจ้งเตือน</button>
+        <button id="alertOff" type="button" hidden>ปิดแจ้งเตือน</button>
+      </div>
+      <p id="alertStatus" class="hint"></p>
+      <p class="hint">ตรวจทุก 10 นาทีตอนเปิดหน้านี้ไว้ และเตือนครั้งเดียวต่อเหตุการณ์ จนกว่าน้ำจะลดต่ำกว่าเกณฑ์ ถ้าติดตั้งเป็นแอปบน Android อาจตรวจเบื้องหลังให้ด้วย แต่ไม่รับประกัน</p>
+    </section>
+    <section class="panel">
+      <h2>ติดตั้งเป็นแอปบนมือถือ</h2>
+      <div class="controls"><button id="installBtn" class="primary" type="button" hidden>ติดตั้งเป็นแอป</button><span id="installHint" class="hint"></span></div>
+    </section>
   </section>
 </div>
 
@@ -233,7 +341,41 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
 <script src="app.js"></script>
 <script>
 let stations = [], me = null, meMarker = null, markers = L.layerGroup(), detailId = null;
-let rain = null, rainLayer = L.layerGroup(), statusExtra = '';
+let rain = null, rainLayer = L.layerGroup(), picking = false;
+
+// คำตัดสินแบบภาษาง่ายๆ + สิ่งที่ควรทำ
+const VERDICT = {
+  lv5: {word: 'อันตราย', line: 'แม่น้ำใกล้บ้านล้นตลิ่งแล้ว', todo: [
+    'ย้ายผู้สูงอายุ เด็ก ผู้ป่วย และสัตว์เลี้ยงไปที่สูงก่อน',
+    'ตัดไฟที่เบรกเกอร์ ถ้าน้ำใกล้เข้าบ้าน',
+    'ใส่เอกสาร ยา เงิน โทรศัพท์ ลงถุงกันน้ำ',
+    'โทร 1784 ถามศูนย์อพยพที่ใกล้ที่สุด']},
+  lv4: {word: 'ใกล้ล้นตลิ่ง', line: 'น้ำเกือบเต็มตลิ่ง ให้เตรียมพร้อม', todo: [
+    'ย้ายของมีค่าและเครื่องใช้ไฟฟ้าขึ้นที่สูง',
+    'จัดกระเป๋าฉุกเฉิน: ยา เอกสาร ไฟฉาย น้ำดื่ม',
+    'ชาร์จโทรศัพท์และพาวเวอร์แบงก์ให้เต็ม',
+    'เปิดแจ้งเตือนในแท็บ "แจ้งเตือน"']},
+  lv3: {word: 'เฝ้าระวัง', line: 'น้ำสูงกว่าปกติ ให้ติดตามใกล้ชิด', todo: [
+    'ดูระดับน้ำทุก 2–3 ชั่วโมง',
+    'เตรียมกระเป๋าฉุกเฉินไว้',
+    'ดูเส้นทางไปที่สูงไว้ล่วงหน้า']},
+  lv2: {word: 'ยังปกติ', line: 'ระดับน้ำยังไม่น่ากังวล', todo: ['ติดตามข่าวจากทางการเป็นระยะ', 'เปิดแจ้งเตือนไว้ เผื่อน้ำขึ้นเร็ว']},
+  lv1: {word: 'ยังปกติ', line: 'ระดับน้ำต่ำ', todo: ['ติดตามข่าวจากทางการเป็นระยะ']},
+  lv0: {word: 'ไม่มีข้อมูล', line: 'ไม่มีข้อมูลระดับน้ำใกล้บ้าน', todo: []}
+};
+
+// ---------- แท็บ ----------
+const TABS = ['home', 'map', 'up', 'list', 'alert'];
+function showTab(name, scrollTop = true){
+  if (!TABS.includes(name)) name = 'home';
+  for (const t of TABS) $('tab-' + t).hidden = t !== name;
+  for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', b.dataset.tab === name);
+  try { history.replaceState(null, '', name === 'home' ? location.pathname + location.search : '#' + name); } catch (e) {}
+  if (name === 'map') setTimeout(() => map.invalidateSize(), 0);
+  if (scrollTop) window.scrollTo({top: 0});
+  if (name !== 'map') stopPick();
+}
+document.querySelector('.tabs').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b) showTab(b.dataset.tab); });
 
 function openDetail(s, scroll){
   detailId = s.id;
@@ -241,14 +383,14 @@ function openDetail(s, scroll){
   $('detailTitle').textContent = `${s.name} · อ.${s.amphoe} จ.${s.prov}`;
   $('detail3d').href = '3d.html#' + s.id;
   renderStationHistory($('detailBody'), s);
-  if (scroll) $('detail').scrollIntoView({behavior: 'smooth', block: 'start'});
+  if (scroll) { showTab('list', false); $('detail').scrollIntoView({behavior: 'smooth', block: 'start'}); }
 }
 
 async function load(){
   $('refresh').disabled = true;
   $('updated').textContent = 'กำลังโหลด…';
   const res = await fetchStations();
-  $('updated').innerHTML = updatedText(res);
+  $('updated').innerHTML = res && !res.fromCache ? 'อัปเดต ' + new Date(res.at).toLocaleTimeString('th-TH', {hour: '2-digit', minute: '2-digit'}) + ' น.' : updatedText(res);
   $('refresh').disabled = false;
   if (!res) return;
   stations = res.stations;
@@ -256,13 +398,115 @@ async function load(){
   const d = detailId && stations.find(s => s.id === detailId);
   if (d) openDetail(d, false);
   loadUpstream(); loadRain(); loadDams();
-  const home = me && stations.filter(s => s.pct != null && NEAR.includes(s.provCode)).sort((a, b) => dist(me.lat, me.lng, a.lat, a.lng) - dist(me.lat, me.lng, b.lat, b.lng))[0];
-  fillAlertStations(stations, home?.id);
+  fillAlertStations(stations, nearestTo(me)?.s.id);
   checkAlerts(stations);
 }
 
-// ---------- น้ำจากต้นน้ำ ----------
+const nearestTo = (p, n = 1) => {
+  if (!p) return null;
+  const list = stations.filter(s => s.pct != null).map(s => ({s, d: dist(p.lat, p.lng, s.lat, s.lng)})).sort((a, b) => a.d - b.d);
+  return n === 1 ? list[0] : list.slice(0, n);
+};
+
+// ---------- สรุป: บ้านของคุณ ----------
+function fcSentence(f){
+  if (!f) return '';
+  const rate = f.cm != null ? Math.abs(f.cm).toFixed(1) : '';
+  if (f.over > 0) return f.trend === 'up' ? `น้ำล้นตลิ่งแล้ว ${f.over.toFixed(2)} ม. และยังสูงขึ้น (ชั่วโมงละ ${rate} ซม.)`
+    : f.trend === 'down' ? `น้ำล้นตลิ่ง ${f.over.toFixed(2)} ม. แต่เริ่มลดลงแล้ว` : `น้ำล้นตลิ่ง ${f.over.toFixed(2)} ม. และทรงตัว`;
+  if (f.trend === 'up' && f.hoursToBank != null) {
+    const h = f.hoursToBank;
+    return h > 72 ? `น้ำกำลังขึ้นช้าๆ (ชั่วโมงละ ${rate} ซม.) ยังเหลืออีก ${f.gap.toFixed(2)} ม. ถึงตลิ่ง`
+      : `ถ้าน้ำขึ้นต่อแบบนี้ จะล้นตลิ่งในอีกราว ${h < 10 ? h.toFixed(1) : Math.round(h)} ชั่วโมง`;
+  }
+  if (f.trend === 'down') return `น้ำกำลังลดลง ยังเหลืออีก ${f.gap?.toFixed(2) ?? '-'} ม. ถึงตลิ่ง`;
+  if (f.trend === 'steady') return `ระดับน้ำทรงตัว ยังเหลืออีก ${f.gap?.toFixed(2) ?? '-'} ม. ถึงตลิ่ง`;
+  return '';
+}
+function renderHome(){
+  const el = $('homeCard');
+  if (!stations.length) return;
+  if (!me) {
+    el.style.removeProperty('--st'); el.style.removeProperty('--st-bg');
+    el.innerHTML = `<span class="eyebrow">บ้านของคุณ</span>
+      <p class="big">ปักหมุดบ้าน เพื่อดูว่าบ้านคุณเสี่ยงแค่ไหน และควรทำอะไร</p>
+      <div class="controls"><button type="button" class="primary" data-act="locate">ใช้ตำแหน่งปัจจุบัน</button>
+      <button type="button" data-act="pick">เลือกบนแผนที่</button></div>`;
+    return;
+  }
+  const near = nearestTo(me, 3);
+  const w = near.reduce((m, x) => x.s.pct > m.s.pct ? x : m, near[0]);
+  const lv = level(w.s.pct), V = VERDICT[lv.k];
+  el.style.setProperty('--st', `var(--${lv.k})`);
+  el.style.setProperty('--st-bg', lv.bg ? `var(--${lv.bg})` : 'var(--surface)');
+  const move = w.s.trend == null ? '' : w.s.trend > .5 ? ' และกำลังขึ้น' : w.s.trend < -.5 ? ' และกำลังลด' : ' ทรงตัว';
+  el.innerHTML = `<div class="row"><span class="eyebrow">บ้านของคุณ</span><button type="button" class="link" data-act="pick">เปลี่ยนตำแหน่งบ้าน</button></div>
+    <div><span class="badge ${lv.k}">${V.word}</span></div>
+    <p class="big">${V.line}</p>
+    <p>แม่น้ำใกล้บ้าน: <b>${esc(w.s.name)}</b> (ห่าง ${w.d.toFixed(1)} กม.) น้ำเต็มตลิ่ง <b class="num">${w.s.pct.toFixed(0)}%</b>${move}</p>
+    <p class="fcline" id="homeFc"></p>
+    ${w.d > 15 ? '<p class="err">สถานีวัดน้ำอยู่ไกลจากบ้าน ค่านี้อาจไม่ตรงกับน้ำแถวบ้านคุณ</p>' : ''}
+    ${V.todo.length ? `<h3>ควรทำตอนนี้ <span class="meta">(ติ๊กเมื่อทำแล้ว)</span></h3><ul class="todo">${V.todo.map(t =>
+      `<li><label><input type="checkbox" data-todo="${esc(t)}"${todoDone().includes(t) ? ' checked' : ''}><span>${t}</span></label></li>`).join('')}</ul>` : ''}
+    <div class="controls"><button type="button" class="primary" data-graph="${esc(w.s.id)}">ดูกราฟระดับน้ำ</button>
+      <button type="button" data-act="tab:map">ดูบนแผนที่</button></div>`;
+  const fcEl = $('homeFc');
+  fetchHistory(w.s.id).then(h => { if ($('homeFc') === fcEl) fcEl.textContent = fcSentence(forecast(h.points, w.s.bank ?? h.minBank)); }).catch(() => {});
+}
+
+// รายการที่ติ๊กแล้ว เก็บในเครื่องนี้เท่านั้น
+function todoDone(){ try { return JSON.parse(localStorage.getItem('wl-todo')) || []; } catch (e) { return []; } }
+document.addEventListener('change', e => {
+  const cb = e.target.closest('[data-todo]'); if (!cb) return;
+  const done = new Set(todoDone());
+  cb.checked ? done.add(cb.dataset.todo) : done.delete(cb.dataset.todo);
+  try { localStorage.setItem('wl-todo', JSON.stringify([...done])); } catch (err) {}
+});
+
+// ---------- สรุป: ภาพรวมอยุธยา ----------
+function renderStatus(){
+  const a = stations.filter(s => s.provCode === AYT && s.pct != null);
+  const el = $('status');
+  if (!a.length) { el.innerHTML = '<p>ไม่พบข้อมูลสถานีในอยุธยา</p>'; return; }
+  const over = a.filter(s => s.pct > 100), crit = a.filter(s => s.pct >= 90 && s.pct <= 100);
+  const worst = a.reduce((m, s) => s.pct > m.pct ? s : m);
+  const lv = level(worst.pct);
+  const rising = a.filter(s => s.trend != null && s.trend > 0.5).length;
+  el.innerHTML = `<div class="row"><h2>ภาพรวมทั้งอยุธยา</h2><span class="badge ${lv.k}">${VERDICT[lv.k].word}</span></div>
+    <div class="tiles">
+      <div class="tile${over.length ? ' alert' : ''}"><b class="num">${over.length}</b><span>จุดที่น้ำล้นตลิ่ง</span></div>
+      <div class="tile"><b class="num">${crit.length}</b><span>จุดที่เกือบล้น</span></div>
+      <div class="tile"><b class="num">${rising}<small style="font-size:.55em">/${a.length}</small></b><span>จุดที่น้ำกำลังขึ้น</span></div>
+    </div>
+    <p>สูงสุดที่ <b>${esc(worst.name)}</b> อ.${esc(worst.amphoe)} น้ำเต็มตลิ่ง <b class="num">${worst.pct.toFixed(0)}%</b>
+      <button type="button" class="link" data-act="tab:list">ดูทุกสถานี</button></p>`;
+}
+
+// ---------- สรุป: อีก 1–2 วัน ----------
 const upInfo = {};
+function renderOutlook(){
+  const c13 = upInfo['2744'], s26 = upInfo['2624'];
+  if (!c13 && !s26) return;
+  const chgs = [c13?.chg, s26?.chg].filter(c => c != null);
+  const upMore = chgs.some(c => c >= 5), downAll = chgs.length && chgs.every(c => c <= -5);
+  const [k, head] = upMore ? ['lv4', 'น้ำจากทางเหนือยังไหลมาเพิ่ม คาดว่าระดับน้ำที่อยุธยาจะสูงขึ้นอีก']
+    : downAll ? ['lv2', 'น้ำจากทางเหนือลดลง ระดับน้ำที่อยุธยามีแนวโน้มทรงตัวหรือลดลง']
+    : ['lv3', 'น้ำจากทางเหนือทรงตัว ระดับน้ำที่อยุธยาน่าจะใกล้เคียงเดิม'];
+  const word = u => u?.chg == null ? '-' : Math.abs(u.chg) < 3 ? 'ทรงตัว' : u.chg > 0 ? `<b class="up">เพิ่มขึ้น ${u.chg.toFixed(0)}%</b>` : `<b class="down">ลดลง ${(-u.chg).toFixed(0)}%</b>`;
+  const heavy = rain ? rain.filter(r => NEAR.includes(r.provCode) && r.r24 > 35) : null;
+  const top = heavy && heavy.length ? heavy.reduce((m, r) => r.r24 > m.r24 ? r : m) : null;
+  $('outlook').innerHTML = `<h2>อีก 1–2 วันข้างหน้า</h2>
+    <div class="hero" style="--st:var(--${k});--st-bg:var(--${k === 'lv2' ? 'ok-bg' : k + '-bg'});padding:12px 14px"><p class="big">${head}</p></div>
+    <ul class="tips">
+      <li>น้ำที่ผ่านเขื่อนเจ้าพระยา (ชัยนาท): ${word(c13)} จากเมื่อวาน · มักใช้เวลา 1–2 วันกว่าจะถึงอยุธยา</li>
+      <li>แม่น้ำป่าสัก (เขื่อนพระรามหก): ${word(s26)} จากเมื่อวาน · ถึงอยุธยาภายในไม่กี่ชั่วโมงถึง 1 วัน</li>
+      ${heavy ? `<li>ฝนหนักใน 24 ชม.: ${heavy.length} จุด${top ? ` (มากสุด ${top.r24.toFixed(0)} มม. ที่ อ.${esc(top.amphoe)} จ.${esc(top.prov)})` : ''}</li>` : ''}
+    </ul>
+    <div class="controls"><button type="button" data-act="tab:up">ดูน้ำเหนือทั้งหมด</button></div>
+    <p class="hint">เป็นการประเมินจากแนวโน้ม ไม่ใช่พยากรณ์อย่างเป็นทางการ ติดตามประกาศของกรมชลประทานและ ปภ. ประกอบ</p>`;
+}
+
+// ---------- น้ำเหนือ ----------
 function sparkPath(points, w = 100, h = 28){
   const q = points.filter(p => p.q != null);
   if (q.length < 3) return '';
@@ -287,34 +531,29 @@ async function loadUpstream(){
     const u = upInfo[st.id] || {};
     return `<li class="node${st.place.includes('อยุธยา') ? ' ayt' : ''}"><span class="code">${st.code} · ${esc(st.place)}</span>
       <span class="q num">${u.now != null ? Math.round(u.now).toLocaleString() : '-'}</span>
-      <span>${chg(u.chg)} <span class="meta">ใน 24 ชม.</span></span>
+      <span>${chg(u.chg)} <span class="meta">จากเมื่อวาน</span></span>
       ${u.spark ? `<svg viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"><path d="${u.spark}" vector-effect="non-scaling-stroke"/></svg>` : ''}</li>`;
   }).join('')}</ol></div>`).join('');
   const c13 = upInfo['2744'], s26 = upInfo['2624'];
   const say = (u, where, travel) => {
     if (!u || u.chg == null) return '';
-    if (u.chg >= 5) return `น้ำที่${where}<b class="up">เพิ่มขึ้น ${u.chg.toFixed(0)}%</b> ใน 24 ชม. (${Math.round(u.now).toLocaleString()} ลบ.ม./วิ) ปกติใช้เวลาราว ${travel} กว่าจะถึงอยุธยา ระดับน้ำที่อยุธยามีแนวโน้มสูงขึ้นอีก`;
-    if (u.chg <= -5) return `น้ำที่${where}<b class="down">ลดลง ${(-u.chg).toFixed(0)}%</b> ใน 24 ชม. อยุธยามีแนวโน้มทรงตัวหรือลดลงในอีกราว ${travel}`;
-    return `น้ำที่${where}ทรงตัว (${Math.round(u.now).toLocaleString()} ลบ.ม./วิ)`;
+    if (u.chg >= 5) return `น้ำที่${where} <b class="up">เพิ่มขึ้น ${u.chg.toFixed(0)}%</b> ใน 24 ชม. ปกติใช้เวลาราว ${travel} กว่าจะถึงอยุธยา`;
+    if (u.chg <= -5) return `น้ำที่${where} <b class="down">ลดลง ${(-u.chg).toFixed(0)}%</b> ใน 24 ชม.`;
+    return `น้ำที่${where} ทรงตัว`;
   };
-  const lines = [say(c13, 'ไหลผ่านเขื่อนเจ้าพระยา', '1–2 วัน'), say(s26, 'แม่น้ำป่าสัก (เขื่อนพระรามหก) ', 'ไม่กี่ชั่วโมงถึง 1 วัน')].filter(Boolean);
+  const lines = [say(c13, 'ผ่านเขื่อนเจ้าพระยา', '1–2 วัน'), say(s26, 'แม่น้ำป่าสัก (เขื่อนพระรามหก)', 'ไม่กี่ชั่วโมงถึง 1 วัน')].filter(Boolean);
   $('upSummary').innerHTML = lines.length ? `<ul class="tips">${lines.map(l => `<li>${l}</li>`).join('')}</ul>` : '<p class="hint">ไม่มีข้อมูลอัตราการไหลล่าสุด</p>';
-  if (c13?.now != null) {
-    statusExtra = `ต้นน้ำ (เขื่อนเจ้าพระยา): <span class="num">${Math.round(c13.now).toLocaleString()}</span> ลบ.ม./วิ ${c13.chg == null ? '' : Math.abs(c13.chg) < 3 ? 'ทรงตัว' : c13.chg > 0 ? `▲ ${c13.chg.toFixed(0)}% ใน 24 ชม.` : `▼ ${(-c13.chg).toFixed(0)}% ใน 24 ชม.`}`
-      + (rain ? ` · ฝนหนัก ≥35 มม. ${heavyCount()} สถานี` : '');
-    renderStatus();
-  }
+  renderOutlook();
 }
 
 // ---------- ฝน ----------
-const heavyCount = () => rain.filter(r => NEAR.includes(r.provCode) && r.r24 > 35).length;
 async function loadRain(){
   try { rain = await fetchRain(); } catch (e) { $('rainTop').innerHTML = '<li class="err">โหลดข้อมูลฝนไม่ได้</li>'; return; }
   const top = rain.filter(r => NEAR.includes(r.provCode)).sort((a, b) => b.r24 - a.r24).slice(0, 5);
-  $('rainTop').innerHTML = top.map(r => `<li><b class="num">${r.r24.toFixed(0)} มม.</b> ${rainLevel(r.r24).t} · ${esc(r.name)} <span class="meta">อ.${esc(r.amphoe)} จ.${esc(r.prov)}</span></li>`).join('')
+  $('rainTop').innerHTML = top.map(r => `<li><b class="num">${r.r24.toFixed(0)} มม.</b> ${rainLevel(r.r24).t}<br><span class="meta">${esc(r.name)} อ.${esc(r.amphoe)} จ.${esc(r.prov)}</span></li>`).join('')
     || '<li class="hint">ไม่มีฝนในพื้นที่</li>';
-  if (statusExtra && !statusExtra.includes('ฝนหนัก')) { statusExtra += ` · ฝนหนัก ≥35 มม. ${heavyCount()} สถานี`; renderStatus(); }
   renderRain();
+  renderOutlook();
 }
 function renderRain(){
   rainLayer.clearLayers();
@@ -327,7 +566,7 @@ function renderRain(){
     L.circleMarker([r.lat, r.lng], {pane: 'rain', renderer: rainRenderer, radius: Math.min(4 + Math.sqrt(r.r24) * .9, 16),
       weight: 1, color: css('--surface'), fillColor: css('--' + lv.k), fillOpacity: .85})
       .bindPopup(`<b>ฝน 24 ชม. ${r.r24.toFixed(1)} มม.</b> (${lv.t})<br>${esc(r.name)}<br>อ.${esc(r.amphoe)} จ.${esc(r.prov)}<br><span class="meta">${esc(r.time)}</span>`)
-      .addTo(rainLayer);
+      .on('click', pickFromLayer).addTo(rainLayer);
   }
 }
 
@@ -337,81 +576,60 @@ async function loadDams(){
   try { dams = await fetchDams(); } catch (e) { $('dams').innerHTML = '<p class="err">โหลดข้อมูลเขื่อนไม่ได้</p>'; return; }
   $('dams').innerHTML = dams.map(d => {
     const k = d.pct >= 90 ? 'lv5' : d.pct >= 80 ? 'lv4' : 'accent';
-    const note = d.pct >= 90 ? 'ใกล้เต็ม อาจต้องเพิ่มการระบายน้ำ'
-      : d.inflow != null && d.released != null && d.inflow > d.released * 2 ? 'รับน้ำมากกว่าปล่อย กำลังเก็บน้ำไว้ ช่วยชะลอน้ำท้ายเขื่อน'
-      : d.released != null && d.inflow != null && d.released > d.inflow ? 'ปล่อยน้ำมากกว่ารับ' : '';
+    const note = d.pct >= 90 ? 'ใกล้เต็ม อาจต้องปล่อยน้ำเพิ่ม'
+      : d.inflow != null && d.released != null && d.inflow > d.released * 2 ? 'กำลังเก็บน้ำไว้ ช่วยชะลอน้ำท้ายเขื่อน'
+      : d.released != null && d.inflow != null && d.released > d.inflow ? 'ปล่อยน้ำมากกว่ารับเข้า' : '';
     return `<div class="dam"><b>${esc(d.name)}</b>
       <div class="meter" role="meter" aria-valuenow="${d.pct}" aria-valuemin="0" aria-valuemax="100" aria-label="ความจุ"><i style="width:${Math.min(d.pct ?? 0, 100)}%;background:var(--${k})"></i></div>
-      <span class="num">${d.pct != null ? d.pct.toFixed(0) : '-'}% ของความจุ</span>
-      <span class="meta">เข้า ${d.inflow ?? '-'} · ปล่อย ${d.released ?? '-'} ล้าน ลบ.ม./วัน</span>
+      <span class="num">เต็ม ${d.pct != null ? d.pct.toFixed(0) : '-'}%</span>
+      <span class="meta">รับเข้า ${d.inflow ?? '-'} · ปล่อยออก ${d.released ?? '-'} ล้าน ลบ.ม./วัน</span>
       ${note ? `<span class="meta">${note}</span>` : ''}</div>`;
   }).join('') + `<p class="hint" style="grid-column:1/-1">ข้อมูลวันที่ ${esc(dams[0]?.date || '-')}</p>`;
 }
 
+// ---------- แผนที่ + ตาราง ----------
 function scoped(){
   const v = $('scope').value;
   if (v === 'all') return stations;
   const codes = v === 'ayt' ? NEAR : v === 'central' ? CENTRAL : [v];
   return stations.filter(s => codes.includes(s.provCode));
 }
-
-function renderStatus(){
-  const a = stations.filter(s => s.provCode === AYT && s.pct != null);
-  const el = $('status');
-  if (!a.length) { el.innerHTML = '<strong>ไม่พบข้อมูลสถานีในอยุธยา</strong>'; return; }
-  const over = a.filter(s => s.pct > 100), crit = a.filter(s => s.pct >= 90 && s.pct <= 100);
-  const worst = a.reduce((m, s) => s.pct > m.pct ? s : m);
-  const lv = level(worst.pct);
-  const rising = a.filter(s => s.trend != null && s.trend > 0.5).length;
-  el.style.setProperty('--st', `var(--${lv.k})`);
-  el.style.setProperty('--st-bg', lv.bg ? `var(--${lv.bg})` : 'var(--surface)');
-  let head = over.length ? `อยุธยา: น้ำล้นตลิ่ง ${over.length} สถานี` :
-             crit.length ? `อยุธยา: ระดับวิกฤต ${crit.length} สถานี` : `อยุธยา: ${lv.t}`;
-  el.innerHTML = `<strong>${head}</strong>
-    <span>สูงสุดที่ <b>${esc(worst.name)}</b> (อ.${esc(worst.amphoe)}) <span class="num">${worst.pct.toFixed(0)}%</span> ของตลิ่ง ·
-    วิกฤต 90–100% อีก ${crit.length} สถานี · น้ำกำลังขึ้น ${rising} จาก ${a.length} สถานี</span>
-    ${statusExtra ? `<span>${statusExtra}</span>` : ''}`;
-}
-
 function renderMap(list){
   markers.clearLayers();
   for (const s of list) {
     const lv = level(s.pct);
     L.circleMarker([s.lat, s.lng], {
-      radius: s.pct > 100 ? 9 : 7, weight: 1.5, color: '#fff', fillColor: css('--' + lv.k), fillOpacity: .95
-    }).bindPopup(popup(s)).addTo(markers);
+      radius: s.pct > 100 ? 10 : 8, weight: 2, color: '#fff', fillColor: css('--' + lv.k), fillOpacity: .95
+    }).bindPopup(popup(s)).on('click', pickFromLayer).addTo(markers);
   }
 }
 function popup(s){
   const lv = level(s.pct);
   return `<b>${esc(s.name)}</b><br>อ.${esc(s.amphoe)} จ.${esc(s.prov)}<br>
-    <span class="pill" style="background:var(--${lv.k})">${lv.t}</span>
-    <span class="num">${s.pct != null ? s.pct.toFixed(1) + '%' : '-'}</span><br>
-    น้ำ <span class="num">${fmtM(s.msl)}</span> · ตลิ่ง <span class="num">${fmtM(s.bank)}</span>${validGround(s) ? ` · ท้องน้ำ <span class="num">${fmtM(s.ground)}</span>` : ''} ม.รทก.<br>
-    ${trendHtml(s)} · ${esc(s.time)}<br>
-    <button type="button" class="link" data-graph="${esc(s.id)}">กราฟ 7 วัน + คาดการณ์</button> ·
+    <span class="pill ${lv.k}" style="background:var(--${lv.k})">${lv.t}</span>
+    น้ำเต็มตลิ่ง <b class="num">${s.pct != null ? s.pct.toFixed(0) + '%' : '-'}</b> ${trendHtml(s)}<br>
+    <button type="button" class="link" data-graph="${esc(s.id)}">ดูกราฟ + คาดการณ์</button> ·
     <a href="3d.html#${esc(s.id)}">ดูแบบ 3D</a>`;
 }
-
 function renderTable(list){
-  const sorted = [...list].sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1));
-  $('tabletitle').textContent = `สถานีทั้งหมด ${sorted.length} สถานี (เรียงจากเสี่ยงมากไปน้อย)`;
-  $('rows').innerHTML = sorted.map((s, i) => {
+  const q = $('q').value.trim();
+  const rows = [...list].filter(s => !q || (s.name + s.amphoe + s.prov).includes(q)).sort((a, b) => (b.pct ?? -1) - (a.pct ?? -1));
+  $('tabletitle').textContent = `สถานี ${rows.length} แห่ง (เรียงจากเสี่ยงมากไปน้อย)`;
+  $('rows').innerHTML = rows.map(s => {
     const lv = level(s.pct);
-    return `<tr class="row-click" data-i="${stations.indexOf(s)}">
-      <td>${esc(s.name)}</td><td>${esc(s.amphoe)}<br><span class="meta">${esc(s.prov)}</span></td>
-      <td class="r"><span class="pill num" style="background:var(--${lv.k})">${s.pct != null ? s.pct.toFixed(0) + '%' : '-'}</span></td>
-      <td class="r num">${s.toBank != null ? s.toBank.toFixed(2) : '-'}</td>
-      <td class="r">${trendHtml(s)}</td><td class="num meta">${esc(s.time.slice(5))}</td></tr>`;
-  }).join('');
+    return `<tr class="row-click" data-id="${esc(s.id)}">
+      <td><b>${esc(s.name)}</b><br><span class="meta">อ.${esc(s.amphoe)} จ.${esc(s.prov)}</span></td>
+      <td class="r"><span class="pill num ${lv.k}" style="background:var(--${lv.k})">${s.pct != null ? s.pct.toFixed(0) + '%' : '-'}</span></td>
+      <td class="r">${trendHtml(s)}</td>
+      <td class="r num wide">${s.toBank != null ? s.toBank.toFixed(2) : '-'}</td>
+      <td class="num meta wide">${esc(s.time.slice(11))}</td></tr>`;
+  }).join('') || '<tr><td colspan="5" class="hint">ไม่พบสถานีที่ค้นหา</td></tr>';
 }
 
+// ---------- ที่ที่ยังไม่เต็มตลิ่ง ใกล้บ้าน ----------
 function renderMe(){
   if (!me || !stations.length) return;
   const withD = stations.filter(s => s.pct != null).map(s => ({...s, d: dist(me.lat, me.lng, s.lat, s.lng)}));
-  const near = withD.sort((a, b) => a.d - b.d).slice(0, 3);
-  const worst = near.reduce((m, s) => s.pct > m.pct ? s : m, near[0]);
-  const lv = level(worst.pct);
   const R = +$('radius').value;
   // ตัดประตูระบายน้ำ/สถานีสูบ/ทุ่งรับน้ำออก: % ต่ำตรงนั้นไม่ได้แปลว่าพื้นที่ปลอดภัย
   const structure = /ปตร|ทรบ|ประตู|สูบน้ำ|ทุ่ง|เขื่อน/;
@@ -420,92 +638,111 @@ function renderMe(){
     .sort((a, b) => a.pct - b.pct || a.d - b.d)
     .filter(s => { const k = s.prov + s.amphoe; if (seen.has(k)) return false; seen.add(k); return true; })
     .slice(0, 5);
-  const advice = {
-    lv5: 'แม่น้ำใกล้คุณล้นตลิ่งแล้ว ถ้าบ้านอยู่ติดน้ำหรือที่ลุ่ม ให้เตรียมอพยพทันที และโทร 1784 ถามศูนย์อพยพ',
-    lv4: 'น้ำใกล้ถึงตลิ่ง เก็บของขึ้นที่สูง จัดกระเป๋าฉุกเฉิน เตรียมพร้อมออกเดินทาง',
-    lv3: 'เฝ้าระวัง ติดตามประกาศทุกชั่วโมง',
-    lv2: 'ยังปกติ แต่ให้ติดตามต่อเนื่อง', lv1: 'ระดับน้ำต่ำ', lv0: '-'
-  }[lv.k];
-  $('me').innerHTML = `
-    <div class="status" style="--st:var(--${lv.k});--st-bg:${lv.bg ? 'var(--' + lv.bg + ')' : 'var(--surface)'}">
-      <strong>${lv.t}</strong><span>${advice}</span></div>
-    <p class="hint">สถานีใกล้คุณที่สุด</p>
-    <ul class="list">${near.map(s => `<li><span><b>${esc(s.name)}</b> <span class="pill num" style="background:var(--${level(s.pct).k})">${s.pct.toFixed(0)}%</span></span>
-      <span class="meta num">ห่าง ${s.d.toFixed(1)} กม. · ${trendHtml(s)} · อ.${esc(s.amphoe)} จ.${esc(s.prov)}</span>
-      <button type="button" class="link" data-graph="${esc(s.id)}">กราฟ 7 วัน</button></li>`).join('')}</ul>
-    <p class="hint">คาดการณ์ที่ ${esc(near[0].name)}</p>
-    <div id="meFc"></div>
-    <p class="hint">พื้นที่ที่แม่น้ำยังไม่เต็มตลิ่ง ในรัศมี ${R} กม. (เรียงจากแม่น้ำต่ำสุด) ดูความสูงพื้นดินจริงได้ในหน้า 3D</p>
-    ${safe.length ? `<ul class="list">${safe.map(s => `<li><span><b>อ.${esc(s.amphoe)} จ.${esc(s.prov)}</b> <span class="pill num" style="background:var(--${level(s.pct).k})">${s.pct.toFixed(0)}%</span></span>
-      <span class="meta num">ไปทาง${bearing(me.lat, me.lng, s.lat, s.lng)} ${s.d.toFixed(0)} กม. · สถานี ${esc(s.name)}</span>
+  $('me').innerHTML = (safe.length ? `<ul class="list">${safe.map(s => `<li><span><b>อ.${esc(s.amphoe)} จ.${esc(s.prov)}</b>
+      <span class="pill num ${level(s.pct).k}" style="background:var(--${level(s.pct).k})">${s.pct.toFixed(0)}%</span></span>
+      <span class="meta">ไปทาง${bearing(me.lat, me.lng, s.lat, s.lng)} ${s.d.toFixed(0)} กม.</span>
       <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}" target="_blank" rel="noopener">นำทางด้วย Google Maps</a></li>`).join('')}</ul>`
-      : `<p class="err">ไม่พบพื้นที่ที่แม่น้ำต่ำกว่า 70% ในรัศมี ${R} กม. ลองขยายรัศมี</p>`}
-    <p class="hint">รายการนี้ดูจากระดับน้ำในแม่น้ำ/คลองเท่านั้น ไม่ใช่ศูนย์อพยพ ถนนบางสายอาจถูกน้ำตัด ให้ยืนยันกับ 1784 หรืออำเภอก่อนเดินทาง</p>`;
-  const fcEl = $('meFc'), s0 = near[0];
-  fetchHistory(s0.id).then(h => { if ($('meFc') === fcEl) fcEl.innerHTML = forecastHtml(forecast(h.points, s0.bank ?? h.minBank)); })
-    .catch(() => { fcEl.innerHTML = '<p class="hint">โหลดข้อมูลคาดการณ์ไม่ได้</p>'; });
+      : `<p class="err">ไม่พบที่ที่แม่น้ำต่ำกว่า 70% ในรัศมี ${R} กม. ลองขยายรัศมี</p>`)
+    + '<p class="hint">ดูจากระดับน้ำในแม่น้ำเท่านั้น ไม่ใช่ศูนย์อพยพ ถนนบางสายอาจถูกน้ำตัด ให้ถาม 1784 หรืออำเภอก่อนเดินทาง</p>';
 }
 
 function setMe(lat, lng){
   me = {lat, lng};
   if (meMarker) meMarker.setLatLng([lat, lng]);
-  else meMarker = L.marker([lat, lng], {title: 'ตำแหน่งของฉัน'}).addTo(map).bindPopup('ตำแหน่งของฉัน');
+  else meMarker = L.marker([lat, lng], {title: 'บ้านของฉัน'}).addTo(map).bindPopup('บ้านของฉัน');
   try { localStorage.setItem('wl-me', JSON.stringify(me)); } catch (e) {}
-  renderMe();
+  renderMe(); renderHome();
+  fillAlertStations(stations, nearestTo(me)?.s.id);
 }
 
 function render(){
   const list = scoped();
-  renderStatus(); renderMap(list); renderTable(list); renderMe();
+  renderHome(); renderStatus(); renderMap(list); renderTable(list); renderMe();
+}
+
+// ---------- ปักหมุดบ้าน ----------
+function startPick(msg){
+  showTab('map');
+  map.closePopup();
+  picking = true;
+  $('pickBanner').querySelector('span').textContent = (msg ? msg + ' · ' : '') + 'แตะบนแผนที่ตรงบ้านของคุณ';
+  $('pickBanner').hidden = false;
+  $('map').style.cursor = 'crosshair';
+}
+function stopPick(){
+  picking = false;
+  $('pickBanner').hidden = true;
+  $('map').style.cursor = '';
+}
+function locate(){
+  if (!navigator.geolocation) { startPick('เบราว์เซอร์นี้หาตำแหน่งไม่ได้'); return; }
+  for (const b of document.querySelectorAll('[data-act="locate"], #locate')) b.textContent = 'กำลังหาตำแหน่ง…';
+  navigator.geolocation.getCurrentPosition(p => {
+    for (const b of document.querySelectorAll('[data-act="locate"], #locate')) b.textContent = 'ใช้ตำแหน่งปัจจุบัน';
+    setMe(p.coords.latitude, p.coords.longitude);
+    map.setView([p.coords.latitude, p.coords.longitude], 11);
+    showTab('home');
+  }, () => {
+    for (const b of document.querySelectorAll('[data-act="locate"], #locate')) b.textContent = 'ใช้ตำแหน่งปัจจุบัน';
+    startPick('หาตำแหน่งไม่ได้ (อาจไม่ได้อนุญาต)');
+  }, {enableHighAccuracy: true, timeout: 15000});
 }
 
 const map = L.map('map').setView([14.35, 100.55], 9);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 18, attribution: '&copy; OpenStreetMap'
-}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 18, attribution: '&copy; OpenStreetMap'}).addTo(map);
 map.createPane('rain').style.zIndex = 390;
 const rainRenderer = L.svg({pane: 'rain'});
 rainLayer.addTo(map);
 markers.addTo(map);
-$('rainOn').addEventListener('change', () => { try { localStorage.setItem('wl-rain', $('rainOn').checked ? '1' : ''); } catch (e) {} renderRain(); });
-try { $('rainOn').checked = localStorage.getItem('wl-rain') === '1'; } catch (e) {}
-map.on('click', e => setMe(e.latlng.lat, e.latlng.lng));
+function pickAt(latlng){
+  stopPick();
+  setMe(latlng.lat, latlng.lng);
+  showTab('home');
+}
+// โหมดปักหมุด: แตะโดนหมุดสถานีก็ถือว่าเลือกตรงนั้น ไม่ต้องเปิดรายละเอียด
+function pickFromLayer(e){
+  if (!picking) return;
+  setTimeout(() => map.closePopup(), 0);
+  pickAt(e.latlng);
+}
+map.on('click', e => { if (picking) pickAt(e.latlng); });
 
-$('rows').addEventListener('click', e => {
-  const tr = e.target.closest('tr[data-i]'); if (!tr) return;
-  const s = stations[+tr.dataset.i];
-  map.setView([s.lat, s.lng], 12);
-  L.popup().setLatLng([s.lat, s.lng]).setContent(popup(s)).openOn(map);
-  openDetail(s, true);
-});
+// ปุ่มต่างๆ (ใช้ data-act เพราะหลายปุ่มถูกสร้างใหม่ตอน render)
 document.addEventListener('click', e => {
-  const b = e.target.closest('[data-graph]'); if (!b) return;
-  const s = stations.find(x => x.id === b.dataset.graph);
-  if (s) openDetail(s, true);
+  const g = e.target.closest('[data-graph]');
+  if (g) { const s = stations.find(x => x.id === g.dataset.graph); if (s) openDetail(s, true); return; }
+  const a = e.target.closest('[data-act]');
+  if (!a) return;
+  const act = a.dataset.act;
+  if (act === 'pick') startPick();
+  else if (act === 'locate') locate();
+  else if (act.startsWith('tab:')) showTab(act.slice(4));
 });
-$('scope').addEventListener('change', () => {
-  try { localStorage.setItem('wl-scope', $('scope').value); } catch (e) {}
+$('rows').addEventListener('click', e => {
+  const tr = e.target.closest('tr[data-id]'); if (!tr) return;
+  const s = stations.find(x => x.id === tr.dataset.id);
+  if (s) { map.setView([s.lat, s.lng], 12); openDetail(s, true); }
+});
+$('pickHome').addEventListener('click', () => startPick());
+$('pickCancel').addEventListener('click', stopPick);
+$('locate').addEventListener('click', locate);
+$('rainOn').addEventListener('change', () => { try { localStorage.setItem('wl-rain', $('rainOn').checked ? '1' : ''); } catch (e) {} renderRain(); });
+for (const sel of document.querySelectorAll('.scope-sel')) sel.addEventListener('change', () => {
+  for (const o of document.querySelectorAll('.scope-sel')) o.value = sel.value;
+  try { localStorage.setItem('wl-scope', sel.value); } catch (e) {}
   render(); renderRain();
   const b = markers.getLayers().map(m => m.getLatLng());
   if (b.length) map.fitBounds(L.latLngBounds(b), {padding: [20, 20]});
 });
+$('q').addEventListener('input', () => renderTable(scoped()));
 $('radius').addEventListener('change', renderMe);
 $('refresh').addEventListener('click', load);
-$('locate').addEventListener('click', () => {
-  if (!navigator.geolocation) { $('me').innerHTML = '<p class="err">เบราว์เซอร์นี้ไม่รองรับการหาตำแหน่ง แตะบนแผนที่แทน</p>'; return; }
-  $('locate').textContent = 'กำลังหาตำแหน่ง…';
-  navigator.geolocation.getCurrentPosition(p => {
-    $('locate').textContent = 'ใช้ตำแหน่งของฉัน';
-    setMe(p.coords.latitude, p.coords.longitude); map.setView([p.coords.latitude, p.coords.longitude], 11);
-  }, () => {
-    $('locate').textContent = 'ใช้ตำแหน่งของฉัน';
-    $('me').innerHTML = '<p class="err">หาตำแหน่งไม่ได้ (อาจไม่ได้อนุญาต) แตะบนแผนที่ตรงบ้านของคุณแทน</p>';
-  }, {enableHighAccuracy: true, timeout: 15000});
-});
 
-try { const sc = localStorage.getItem('wl-scope'); if (sc) $('scope').value = sc; } catch (e) {}
-try { const m = JSON.parse(localStorage.getItem('wl-me')); if (m) { me = m; meMarker = L.marker([m.lat, m.lng]).addTo(map).bindPopup('ตำแหน่งของฉัน'); } } catch (e) {}
+try { $('rainOn').checked = localStorage.getItem('wl-rain') === '1'; } catch (e) {}
+try { const sc = localStorage.getItem('wl-scope'); if (sc) for (const o of document.querySelectorAll('.scope-sel')) o.value = sc; } catch (e) {}
+try { const m = JSON.parse(localStorage.getItem('wl-me')); if (m) { me = m; meMarker = L.marker([m.lat, m.lng], {title: 'บ้านของฉัน'}).addTo(map).bindPopup('บ้านของฉัน'); } } catch (e) {}
 
+showTab(location.hash.slice(1) || 'home', false);
 load();
 setInterval(load, REFRESH_MS);
 </script>

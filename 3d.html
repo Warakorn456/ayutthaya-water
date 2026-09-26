@@ -36,6 +36,7 @@
   color-scheme:dark;
 }
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "IBM Plex Sans Thai",Tahoma,"Leelawadee UI",sans-serif}
 .wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:16px 40px;display:grid;gap:16px}
 .num{font-family:"IBM Plex Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
@@ -91,7 +92,7 @@ svg.section .tick{fill:var(--muted)}
       <div class="meta">ระดับน้ำ: <a href="https://www.thaiwater.net" target="_blank" rel="noopener">thaiwater.net</a> · ความสูงพื้นดิน: ดาวเทียม SRTM · <span id="updated">กำลังโหลด…</span></div>
     </div>
     <div class="controls">
-      <a class="btn" href="index.html">แผนที่ 2D / ตาราง</a>
+      <a class="btn" href="index.html">กลับหน้าหลัก</a>
       <button id="refresh" class="primary" type="button">รีเฟรช</button>
     </div>
   </header>
