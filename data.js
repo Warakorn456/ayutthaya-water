@@ -47,6 +47,8 @@ async function fetchStations(){
       const r = await fetch(url, {cache:'no-store'});
       if (r.ok) {
         const json = await r.json();
+        // ออฟไลน์: service worker ส่งข้อมูลเก่ามาให้ พร้อมเวลาที่เก็บไว้
+        if (r.headers.get('X-From-Cache')) return {stations: parse(json), fromCache: true, at: +r.headers.get('X-Cached-At') || Date.now()};
         try { localStorage.setItem('wl-cache', JSON.stringify({at: Date.now(), json})); } catch (e) {}
         return {stations: parse(json), fromCache: false, at: Date.now()};
       }

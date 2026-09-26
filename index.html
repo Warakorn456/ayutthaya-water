@@ -4,6 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ระดับน้ำอยุธยา</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0b6e8a">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -55,6 +61,10 @@ h3{margin:0;font-size:.95rem}
 .meter i{display:block;height:100%;border-radius:4px}
 ol.rain{margin:0;padding-left:1.4em;display:grid;gap:4px}
 .toggle{display:inline-flex;gap:6px;align-items:center;font-size:.85rem;cursor:pointer}
+.alertform{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.field{display:grid;gap:4px;min-width:0}
+.field label{font-size:.82rem;color:var(--muted)}
+.field select,.field input{width:100%;font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
 button.link{background:none;border:0;padding:0;color:var(--accent);text-decoration:underline;font:inherit;cursor:pointer}
 .dhead{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between}
 a.btn{display:inline-block;text-decoration:none;font-weight:500;border:1px solid var(--accent);border-radius:8px;padding:6px 12px}
@@ -147,6 +157,23 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
     </section>
   </div>
 
+  <section class="panel" id="alerts">
+    <h2>แจ้งเตือน + ติดตั้งเป็นแอป</h2>
+    <div class="controls"><button id="installBtn" class="primary" type="button" hidden>ติดตั้งเป็นแอปบนมือถือ</button><span id="installHint" class="hint"></span></div>
+    <div class="alertform">
+      <div class="field"><label for="alertStation">สถานีที่ต้องการติดตาม</label><select id="alertStation"></select></div>
+      <div class="field"><label for="alertPct">เตือนเมื่อน้ำถึง (% ของตลิ่ง)</label><input id="alertPct" type="number" min="50" max="150" step="5" value="100" inputmode="numeric"></div>
+      <div class="field"><label for="alertRate">หรือเมื่อน้ำขึ้นเร็วกว่า (ซม./ชม., 0 = ปิด)</label><input id="alertRate" type="number" min="0" max="50" step="0.5" value="3" inputmode="decimal"></div>
+    </div>
+    <div class="controls">
+      <button id="alertOn" type="button">เปิดแจ้งเตือน</button>
+      <button id="alertTest" type="button" hidden>ทดสอบแจ้งเตือน</button>
+      <button id="alertOff" type="button" hidden>ปิดแจ้งเตือน</button>
+    </div>
+    <p id="alertStatus" class="hint"></p>
+    <p class="hint">ระบบจะตรวจทุก 10 นาทีตอนที่เปิดหน้านี้ไว้ และจะเตือนครั้งเดียวต่อเหตุการณ์ จนกว่าน้ำจะลดต่ำกว่าเกณฑ์ ถ้าติดตั้งเป็นแอปบน Android อาจตรวจเบื้องหลังให้ด้วยทุกราว 30 นาที แต่ไม่รับประกัน</p>
+  </section>
+
   <section class="panel" id="upstream">
     <h2>น้ำจากต้นน้ำ: กำลังมาเพิ่มหรือลดลง</h2>
     <div id="upSummary"><p class="hint">กำลังโหลดอัตราการไหล…</p></div>
@@ -203,6 +230,7 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="data.js"></script>
 <script src="ui.js"></script>
+<script src="app.js"></script>
 <script>
 let stations = [], me = null, meMarker = null, markers = L.layerGroup(), detailId = null;
 let rain = null, rainLayer = L.layerGroup(), statusExtra = '';
@@ -228,6 +256,9 @@ async function load(){
   const d = detailId && stations.find(s => s.id === detailId);
   if (d) openDetail(d, false);
   loadUpstream(); loadRain(); loadDams();
+  const home = me && stations.filter(s => s.pct != null && NEAR.includes(s.provCode)).sort((a, b) => dist(me.lat, me.lng, a.lat, a.lng) - dist(me.lat, me.lng, b.lat, b.lng))[0];
+  fillAlertStations(stations, home?.id);
+  checkAlerts(stations);
 }
 
 // ---------- น้ำจากต้นน้ำ ----------
