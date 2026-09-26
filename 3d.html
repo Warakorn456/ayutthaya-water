@@ -80,6 +80,7 @@ svg.section .wline{stroke:var(--water);stroke-width:2}
 svg.section .land{stroke:var(--land);stroke-width:1.5;stroke-dasharray:5 4;fill:none}
 svg.section .grid{stroke:var(--line);stroke-width:1}
 svg.section .tick{fill:var(--muted)}
+ul.flowlist{margin:0;padding-left:1.2em;display:grid;gap:6px}
 .warn{font-size:.82rem;color:var(--muted);border-left:3px solid var(--lv3);padding-left:10px;margin:0}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -130,6 +131,44 @@ svg.section .tick{fill:var(--muted)}
         </div>
       </section>
 
+      <section class="panel" id="flowPanel">
+        <h2>น้ำจะไหลไปทางไหน และแผ่ไปถึงไหน</h2>
+        <p class="hint">วิเคราะห์ในกรอบ 30×30 กม. รอบบ้าน (ถ้ายังไม่ปักหมุดบ้าน จะใช้สถานีที่เลือก)</p>
+        <div class="field">
+          <label for="flowMode">แบบจำลอง</label>
+          <select id="flowMode">
+            <option value="1">น้ำที่ล้นตลิ่งจริง สะสม 1 วัน</option>
+            <option value="3" selected>น้ำที่ล้นตลิ่งจริง สะสม 3 วัน</option>
+            <option value="7">น้ำที่ล้นตลิ่งจริง สะสม 7 วัน</option>
+            <option value="pot">ถ้าคันกั้นน้ำแตก (ทุกที่ที่ต่ำกว่าระดับแม่น้ำ)</option>
+          </select>
+        </div>
+        <p class="hint" id="flowModeHint">เอาปริมาณน้ำที่ล้นตลิ่งจริงตอนนี้ มาเติมลงที่ต่ำที่สุดที่ต่อกับแม่น้ำก่อน (สมมติว่าน้ำที่ล้นทั้งหมดไหลเข้ากรอบนี้ จึงเป็นกรณีหนักสุด)</p>
+        <div class="field">
+          <label for="flowLevel">ใช้ระดับน้ำ</label>
+          <select id="flowLevel">
+            <option value="0">ตอนนี้</option>
+            <option value="24">พยากรณ์อีก 24 ชม.</option>
+            <option value="48">พยากรณ์อีก 48 ชม.</option>
+            <option value="72">พยากรณ์อีก 72 ชม.</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="flowExtra">จำลองให้น้ำในแม่น้ำสูงขึ้นอีก</label>
+          <div class="row"><input id="flowExtra" type="range" min="0" max="2" step="0.1" value="0"><output id="flowExtraOut" class="num" for="flowExtra">+0.0 ม.</output></div>
+        </div>
+        <div class="controls"><button id="flowRun" type="button" class="primary">วิเคราะห์</button><button id="flowClear" type="button" hidden>ซ่อนผลวิเคราะห์</button></div>
+        <div id="flowOut" aria-live="polite"></div>
+        <div class="legend" id="flowLegend" hidden>
+          <span><i class="sw" style="background:rgb(128,202,248)"></i>น้ำตื้น</span>
+          <span><i class="sw" style="background:rgb(15,55,140)"></i>น้ำลึก &gt;2 ม.</span>
+          <span><i class="sw" style="background:#e4572e;height:4px"></i>ทางไหลของน้ำจากบ้าน</span>
+          <span><i class="sw" style="background:#7b2cbf;border-radius:50%"></i>แอ่งที่น้ำจะขัง</span>
+        </div>
+        <p class="warn">คำนวณจากความสูงพื้นดินจากดาวเทียม ซึ่งไม่เห็นคันกั้นน้ำเล็กๆ ประตูระบายน้ำ และท่อลอด
+          พื้นที่ที่น้ำไปถึงจึงอาจมากกว่าความจริงในที่ที่มีคันกั้น และความสูงคลาดเคลื่อนได้ราว ±1.5 ม. ใช้ประกอบการตัดสินใจเท่านั้น</p>
+      </section>
+
       <section class="panel">
         <h2>บ้านของฉันสูงแค่ไหน</h2>
         <button id="locate" type="button">ใช้ตำแหน่งของฉัน</button>
@@ -161,11 +200,13 @@ svg.section .tick{fill:var(--muted)}
 
 <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.21.0/dist/maplibre-gl.js"></script>
 <script src="data.js?v=6"></script>
+<script src="flow.js?v=6"></script>
 <script src="forecast.js?v=6"></script>
 <script src="ui.js?v=6"></script>
 <script src="app.js?v=6"></script>
 <script>
 const DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+let flowAuto = location.hash !== '#flow';   // เปิดจากลิงก์ #flow → วิเคราะห์รอบบ้านอัตโนมัติ
 let stations = [], current = null, floodCenter = null, floodBias = 1.2, meMarker = null, meResult = null;
 
 // ---------- ความสูงพื้นดินจาก DEM (terrarium) ----------
@@ -520,7 +561,7 @@ async function load(){
   if (!res) return;
   stations = res.stations;
   fillSelect();
-  const want = current?.id || location.hash.slice(1);
+  const want = current?.id || (location.hash === '#flow' ? '' : location.hash.slice(1));
   let s = stations.find(x => x.id === want && x.msl != null && x.bank != null);
   const fromHash = !current && !!s;
   if (!s) {
@@ -531,7 +572,337 @@ async function load(){
   if (!meResult) {
     try { const m = JSON.parse(localStorage.getItem('wl-me')); if (m) handlePoint(m.lat, m.lng, !fromHash); } catch (e) {}
   }
+  if (!flowAuto) { flowAuto = true; $('flowPanel').scrollIntoView({behavior: 'smooth'}); runFlow(); }
 }
+
+// ---------- วิเคราะห์ทางไหลน้ำ ----------
+const FLOW_Z = 12, FLOW_HALF_M = 15000;
+let flowWorker = null, flowRunning = false;
+const STRUCT_RE = /ปตร|ทรบ|ประตู|สูบน้ำ|ทุ่ง|เขื่อน/;
+
+function flowCenter(){
+  try { const m = JSON.parse(localStorage.getItem('wl-me')); if (m) return {lat: m.lat, lng: m.lng, home: true}; } catch (e) {}
+  return current ? {lat: current.lat, lng: current.lng, home: false} : null;
+}
+
+// ย้ายกล้องให้เห็นทั้งกรอบ แล้วรอให้แผนที่โหลดเสร็จ (ต้องใช้ข้อมูลแม่น้ำจากแผนที่ vector)
+function fitAndIdle(bounds){
+  return new Promise(res => {
+    const done = () => { clearTimeout(tm); res(); };
+    const tm = setTimeout(() => { map.off('idle', done); res(); }, 9000);
+    map.once('idle', done);
+    map.fitBounds(bounds, {animate: false, pitch: 0, bearing: 0, padding: 0});
+  });
+}
+
+// วาดแม่น้ำ (สายหลัก) และแม่น้ำ+คลอง ลงกริด
+function rasterRivers(N, toGrid){
+  const mk = () => { const c = canvasOf(N, N); const x = c.getContext('2d', {willReadFrequently: true}); x.lineCap = 'round'; return [c, x]; };
+  const [cs, xs] = mk(), [cd, xd] = mk(), [cw, xw] = mk();
+  const named = [];
+  const drawGeom = (ctx, g, width, fill) => {
+    const rings = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates
+      : g.type === 'LineString' ? [[g.coordinates]] : g.type === 'MultiLineString' ? [g.coordinates] : [];
+    for (const poly of rings) {
+      ctx.beginPath();
+      for (const ring of poly) ring.forEach(([lng, lat], i) => { const [x, y] = toGrid(lng, lat); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      if (fill) ctx.fill('evenodd'); else { ctx.lineWidth = width; ctx.stroke(); }
+    }
+  };
+  for (const c of [xs, xd, xw]) { c.fillStyle = '#fff'; c.strokeStyle = '#fff'; }
+  if (vectorBase) {
+    for (const f of map.querySourceFeatures('openmaptiles', {sourceLayer: 'water'})) {
+      if (f.properties.class !== 'river') { drawGeom(xw, f.geometry, 0, true); continue; }
+      drawGeom(xs, f.geometry, 0, true); drawGeom(xd, f.geometry, 0, true);
+    }
+    for (const f of map.querySourceFeatures('openmaptiles', {sourceLayer: 'waterway'})) {
+      const cls = f.properties.class;
+      if (cls !== 'river' && cls !== 'canal') continue;
+      if (cls === 'river') drawGeom(xs, f.geometry, 2.5, false);
+      drawGeom(xd, f.geometry, cls === 'river' ? 2.5 : 1.5, false);
+      const nm = f.properties['name:th'] || f.properties.name;
+      if (nm) named.push({name: nm, cls, coords: f.geometry.type === 'LineString' ? f.geometry.coordinates : f.geometry.coordinates.flat()});
+    }
+  }
+  const read = ctx => { const d = ctx.getImageData(0, 0, N, N).data, m = new Uint8Array(N * N); for (let i = 0; i < m.length; i++) m[i] = d[i * 4 + 3] > 60 ? 1 : 0; return m; };
+  return {source: read(xs), drain: read(xd), still: read(xw), named};
+}
+
+async function runFlow(){
+  if (flowRunning || !map) return;
+  const c = flowCenter();
+  if (!c) { $('flowOut').innerHTML = '<p class="err">เลือกสถานีหรือปักหมุดบ้านก่อน</p>'; return; }
+  flowRunning = true;
+  $('flowRun').disabled = true;
+  const say = m => { $('flowOut').innerHTML = `<p class="hint">${m}</p>`; };
+  try {
+    const z = FLOW_Z, cellM = 40075016.686 * Math.cos(c.lat * Math.PI / 180) / (256 * 2 ** z);
+    const half = Math.round(FLOW_HALF_M / cellM), N = half * 2;
+    const gx0 = Math.floor(lng2x(c.lng, z) * 256) - half, gy0 = Math.floor(lat2y(c.lat, z) * 256) - half;
+    const toLngLat = (gx, gy) => [x2lng((gx0 + gx) / 256, z), y2lat((gy0 + gy) / 256, z)];
+    const toGrid = (lng, lat) => [lng2x(lng, z) * 256 - gx0, lat2y(lat, z) * 256 - gy0];
+    const corners = [toLngLat(0, 0), toLngLat(N, 0), toLngLat(N, N), toLngLat(0, N)];
+
+    // ความสูงพื้นดิน (ปรับเทียบ)
+    say('กำลังโหลดความสูงพื้นดิน…');
+    const Z = new Float32Array(N * N).fill(NaN);
+    const tiles = [];
+    for (let ty = Math.floor(gy0 / 256); ty <= Math.floor((gy0 + N - 1) / 256); ty++)
+      for (let tx = Math.floor(gx0 / 256); tx <= Math.floor((gx0 + N - 1) / 256); tx++) tiles.push([tx, ty]);
+    await Promise.all(tiles.map(async ([tx, ty]) => {
+      let e; try { e = await demTile(z, tx, ty); } catch (err) { return; }
+      for (let py = 0; py < 256; py++) {
+        const gy = ty * 256 + py - gy0; if (gy < 0 || gy >= N) continue;
+        for (let px = 0; px < 256; px++) { const gx = tx * 256 + px - gx0; if (gx >= 0 && gx < N) Z[gy * N + gx] = e[py * 256 + px]; }
+      }
+    }));
+    // ดาวเทียมวัดรวมต้นไม้/อาคาร (หมู่บ้านริมน้ำมักมีต้นไม้หนาแน่นเป็นแนวยาว):
+    // ใช้ค่าต่ำสุดในหน้าต่าง 5×5 (~185 ม.) ให้เอื้อมไปถึงพื้นที่โล่งข้างๆ ซึ่งใกล้พื้นดินจริงกว่า
+    const Zf = new Float32Array(N * N).fill(NaN);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      let m = Infinity;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if (xx < 0 || yy < 0 || xx >= N || yy >= N) continue;
+        const v = Z[yy * N + xx]; if (!isNaN(v) && v < m) m = v;
+      }
+      if (m < Infinity) Zf[y * N + x] = m;
+    }
+    Z.set(Zf);
+    // ตรวจกับตลิ่งที่สำรวจจริง: พื้นรอบสถานีควรต่ำกว่าสันตลิ่งเล็กน้อย
+    // ถ้าต่างจากนั้นมาก (ข้อมูลเพี้ยน) จึงปรับ ไม่เช่นนั้นไม่ปรับ เพื่อไม่ให้ยกพื้นที่นาขึ้นไปเท่าสันตลิ่ง
+    const ringMed = (sx, sy) => {
+      const v = [], r1 = 400 / cellM, r2 = 800 / cellM;
+      for (let y = Math.floor(sy - r2); y <= sy + r2; y++) for (let x = Math.floor(sx - r2); x <= sx + r2; x++) {
+        const d2 = (x - sx) ** 2 + (y - sy) ** 2;
+        if (d2 < r1 * r1 || d2 > r2 * r2 || x < 0 || y < 0 || x >= N || y >= N) continue;
+        const z0 = Z[y * N + x]; if (!isNaN(z0)) v.push(z0);
+      }
+      v.sort((a, b) => a - b);
+      return v.length > 10 ? v[v.length >> 1] : null;
+    };
+    const biases = [];
+    for (const s of stations) {
+      if (s.bank == null || (s.leftBank == null && s.rightBank == null)) continue;
+      const [sx, sy] = toGrid(s.lng, s.lat);
+      if (sx < 30 || sy < 30 || sx > N - 30 || sy > N - 30) continue;
+      const m = ringMed(sx, sy);
+      if (m != null) biases.push(m - Math.max(s.leftBank ?? s.bank, s.rightBank ?? s.bank));
+    }
+    biases.sort((a, b) => a - b);
+    const medBias = biases.length >= 2 ? biases[biases.length >> 1] : null;
+    // ปกติพื้นรอบสถานีต่ำกว่าสันตลิ่ง 0–1.5 ม. ถ้าอยู่นอกช่วงนี้ ให้ดึงกลับเข้าช่วง
+    const bias = medBias == null ? 0 : medBias > 0 ? medBias : medBias < -1.5 ? medBias + 1.5 : 0;
+    for (let i = 0; i < Z.length; i++) if (!isNaN(Z[i])) Z[i] -= bias;
+
+    // แม่น้ำจากแผนที่
+    say('กำลังอ่านตำแหน่งแม่น้ำและคลอง…');
+    await fitAndIdle([corners[3], corners[1]]);
+    const riv = rasterRivers(N, toGrid);
+
+    // ระดับน้ำในแม่น้ำ: IDW จากสถานีริมแม่น้ำ (ไม่ใช้สถานีในทุ่ง/ประตูระบายน้ำ)
+    const hFc = +$('flowLevel').value, extra = +$('flowExtra').value;
+    let fcShift = 0, fcNote = '';
+    const src = stations.filter(s => s.msl != null && s.bank != null && !STRUCT_RE.test(s.name))
+      .map(s => { const [x, y] = toGrid(s.lng, s.lat); return {x, y, v: s.msl, s}; })
+      .filter(p => p.x > -N * .35 && p.y > -N * .35 && p.x < N * 1.35 && p.y < N * 1.35);
+    if (!src.length) throw new Error('ไม่มีสถานีวัดน้ำในพื้นที่');
+    if (hFc) {
+      const ref = src.map(p => ({...p, d: (p.x - N / 2) ** 2 + (p.y - N / 2) ** 2})).sort((a, b) => a.d - b.d)[0].s;
+      say(`กำลังคำนวณพยากรณ์ที่ ${ref.name}…`);
+      const fc = await forecastModel(ref).catch(() => null);
+      const hz = fc?.horizons.find(x => x.h === hFc);
+      if (hz) { fcShift = hz.mean - fc.v; fcNote = `ใช้พยากรณ์ของ${ref.name}: ${fcShift >= 0 ? 'สูงขึ้น' : 'ลดลง'} ${Math.abs(fcShift * 100).toFixed(0)} ซม. ใน ${hFc} ชม.`; }
+      else fcNote = 'คำนวณพยากรณ์ไม่ได้ ใช้ระดับน้ำตอนนี้แทน';
+    }
+    // ถ้าไม่มีข้อมูลแม่น้ำจากแผนที่ ใช้วงรัศมี 300 ม. รอบสถานีเป็นแม่น้ำ
+    let nSrc = 0;
+    for (let i = 0; i < riv.source.length; i++) nSrc += riv.source[i];
+    if (nSrc < 50) {
+      const r = Math.max(2, Math.round(300 / cellM));
+      for (const p of src) for (let y = Math.round(p.y) - r; y <= Math.round(p.y) + r; y++) for (let x = Math.round(p.x) - r; x <= Math.round(p.x) + r; x++)
+        if (x >= 0 && y >= 0 && x < N && y < N && (x - p.x) ** 2 + (y - p.y) ** 2 <= r * r) { riv.source[y * N + x] = 1; riv.drain[y * N + x] = 1; }
+    }
+    const level = new Float32Array(N * N).fill(NaN);
+    for (let i = 0; i < level.length; i++) {
+      if (!riv.source[i]) continue;
+      const x = i % N, y = (i / N) | 0;
+      const near = src.map(p => ({v: p.v, d: (p.x - x) ** 2 + (p.y - y) ** 2 + 1})).sort((a, b) => a.d - b.d).slice(0, 3);
+      let sw = 0, sv = 0;
+      for (const q of near) { const w = 1 / q.d; sw += w; sv += w * q.v; }
+      level[i] = sv / sw + fcShift + extra;
+    }
+
+    // ปริมาณน้ำที่ล้นตลิ่งจริง (ทั้งช่วงอยุธยา) × จำนวนวัน
+    const mode = $('flowMode').value;
+    const q = Object.fromEntries(stations.filter(s => FLOW_IDS.includes(s.id)).map(s => [s.id, s.q]));
+    const cap = Object.fromEntries(stations.filter(s => FLOW_IDS.includes(s.id)).map(s => [s.id, s.qmax]));
+    const bal = flowBalance(q, cap);
+    const days = mode === 'pot' ? 0 : +mode;
+    const volume = days ? bal.excess * 86400 * days : 0;
+
+    // บ้าน: ระวังไว้ก่อน ถือว่าพื้นบ้านสูงกว่าพื้นต่ำรอบๆ (percentile 20 ในรัศมี 700 ม.) ได้ไม่เกิน 1 ม.
+    let home = null;
+    if (c.home) {
+      const [x, y] = toGrid(c.lng, c.lat); home = {x: Math.round(x), y: Math.round(y)};
+      const r = Math.round(700 / cellM), v = [];
+      for (let yy = home.y - r; yy <= home.y + r; yy++) for (let xx = home.x - r; xx <= home.x + r; xx++)
+        if (xx >= 0 && yy >= 0 && xx < N && yy < N && (xx - home.x) ** 2 + (yy - home.y) ** 2 <= r * r && !riv.drain[yy * N + xx] && !isNaN(Z[yy * N + xx])) v.push(Z[yy * N + xx]);
+      v.sort((a, b) => a - b);
+      if (v.length) {
+        const capZ = v[Math.floor(v.length * .2)] + 1;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const i = (home.y + dy) * N + home.x + dx;
+          if (i >= 0 && i < Z.length && Z[i] > capZ) Z[i] = capZ;
+        }
+      }
+    }
+
+    say('กำลังคำนวณทางไหลของน้ำ…');
+    if (!flowWorker) flowWorker = new Worker('analysis.js?v=8');
+    const res = await new Promise((resolve, reject) => {
+      flowWorker.onmessage = e => resolve(e.data);
+      flowWorker.onerror = e => reject(new Error(e.message || 'worker error'));
+      flowWorker.postMessage({N, Z, source: riv.source, drain: riv.drain, still: riv.still, level, home, cellM, bias, volume});
+    });
+
+    res.mode = mode; res.days = days; res.bal = bal;
+    drawFlow(res, N, corners, toLngLat, riv);
+    $('flowOut').innerHTML = flowSummaryHtml(res, c, toLngLat, riv, cellM, fcNote, extra);
+    $('flowLegend').hidden = false; $('flowClear').hidden = false;
+    map.easeTo({center: [c.lng, c.lat], zoom: 11.3, pitch: 50, bearing: -15, duration: 800});
+  } catch (err) {
+    $('flowOut').innerHTML = `<p class="err">วิเคราะห์ไม่สำเร็จ: ${esc(err.message)} ลองกดอีกครั้ง</p>`;
+  } finally {
+    flowRunning = false;
+    $('flowRun').disabled = false;
+  }
+}
+
+function drawFlow(res, N, corners, toLngLat, riv){
+  // ความลึกน้ำ → ภาพ
+  const cv = canvasOf(N, N), ctx = cv.getContext('2d'), img = ctx.createImageData(N, N), px = img.data;
+  const d = res.mode === 'pot' || !res.days ? res.depth : res.vdepth;
+  for (let i = 0; i < d.length; i++) {
+    if (!(d[i] > .05)) continue;
+    const x = i % N, y = (i / N) | 0;
+    const shore = (x > 0 && !(d[i - 1] > .05) && !riv.source[i - 1]) || (x < N - 1 && !(d[i + 1] > .05) && !riv.source[i + 1])
+      || (y > 0 && !(d[i - N] > .05) && !riv.source[i - N]) || (y < N - 1 && !(d[i + N] > .05) && !riv.source[i + N]);
+    const o = i * 4;
+    if (shore) { px[o] = 8; px[o + 1] = 60; px[o + 2] = 150; px[o + 3] = 255; continue; }
+    let k = Math.min(d[i] / 2, 1); k = k * k * (3 - 2 * k);
+    px[o] = 128 - 113 * k; px[o + 1] = 202 - 147 * k; px[o + 2] = 248 - 108 * k; px[o + 3] = 165 + 70 * k;
+  }
+  ctx.putImageData(img, 0, 0);
+  const url = (cv.convertToBlob ? null : cv.toDataURL());
+  const apply = u => {
+    if (map.getSource('inund')) map.getSource('inund').updateImage({url: u, coordinates: corners});
+    else {
+      map.addSource('inund', {type: 'image', url: u, coordinates: corners});
+      const ids = map.getStyle().layers.map(l => l.id), after = ids[ids.indexOf('flood') + 1];
+      map.addLayer({id: 'inund', type: 'raster', source: 'inund', paint: {'raster-opacity': .9, 'raster-fade-duration': 0, 'raster-resampling': 'linear'}}, after);
+    }
+    map.setLayoutProperty('inund', 'visibility', 'visible');
+    map.setLayoutProperty('flood', 'visibility', 'none');
+  };
+  if (url) apply(url); else cv.convertToBlob({type: 'image/png'}).then(b => apply(URL.createObjectURL(b)));
+
+  // ทางไหล + แอ่ง + กรอบ
+  const line = res.path && res.path.length > 1 ? res.path.map(i => toLngLat(i % N + .5, ((i / N) | 0) + .5)) : [];
+  const pts = [];
+  if (line.length) pts.push({type: 'Feature', properties: {kind: 'end'}, geometry: {type: 'Point', coordinates: line[line.length - 1]}});
+  if (res.pond) pts.push({type: 'Feature', properties: {kind: 'pond'}, geometry: {type: 'Point', coordinates: toLngLat(res.pond.idx % N + .5, ((res.pond.idx / N) | 0) + .5)}});
+  const box = [...corners, corners[0]];
+  const data = {
+    fpath: {type: 'FeatureCollection', features: line.length ? [{type: 'Feature', geometry: {type: 'LineString', coordinates: line}}] : []},
+    fpts: {type: 'FeatureCollection', features: pts},
+    fbox: {type: 'FeatureCollection', features: [{type: 'Feature', geometry: {type: 'LineString', coordinates: box}}]}
+  };
+  for (const [id, fc] of Object.entries(data)) {
+    if (map.getSource(id)) map.getSource(id).setData(fc);
+    else map.addSource(id, {type: 'geojson', data: fc});
+  }
+  if (!map.getLayer('fbox')) {
+    map.addLayer({id: 'fbox', type: 'line', source: 'fbox', paint: {'line-color': '#0b6e8a', 'line-width': 1.5, 'line-dasharray': [3, 3]}});
+    map.addLayer({id: 'fpath-casing', type: 'line', source: 'fpath', layout: {'line-cap': 'round', 'line-join': 'round'}, paint: {'line-color': '#ffffff', 'line-width': 7}});
+    map.addLayer({id: 'fpath', type: 'line', source: 'fpath', layout: {'line-cap': 'round', 'line-join': 'round'}, paint: {'line-color': '#e4572e', 'line-width': 4}});
+    map.addLayer({id: 'fpts', type: 'circle', source: 'fpts', paint: {
+      'circle-radius': 8, 'circle-stroke-color': '#fff', 'circle-stroke-width': 2,
+      'circle-color': ['match', ['get', 'kind'], 'pond', '#7b2cbf', '#e4572e']}});
+  }
+  for (const id of ['fbox', 'fpath-casing', 'fpath', 'fpts']) map.setLayoutProperty(id, 'visibility', 'visible');
+}
+
+function flowSummaryHtml(res, c, toLngLat, riv, cellM, fcNote, extra){
+  const N = Math.round(Math.sqrt(res.depth.length));
+  const lines = [], S = res.stats, vol = res.days > 0;
+  if (vol) {
+    lines.push(res.bal.excess > 0
+      ? `<li>ตอนนี้น้ำล้นตลิ่งช่วงอยุธยาราว <b class="num">${res.bal.excessMcm.toFixed(1)} ล้าน ลบ.ม./วัน</b> สะสม ${res.days} วัน = <b class="num">${S.volumeMcm.toFixed(0)} ล้าน ลบ.ม.</b>
+          ถ้าไหลเข้ากรอบนี้ทั้งหมด จะท่วมที่ต่ำ <b class="num">${S.vAreaKm2.toFixed(0)} ตร.กม.</b>${S.vLevel != null ? ` (ผิวน้ำราว ${S.vLevel.toFixed(1)} ม.รทก.)` : ''} (สีฟ้าบนแผนที่)</li>`
+      : '<li>ตอนนี้แม่น้ำยังรับน้ำได้ ไม่มีน้ำล้นตลิ่งมาเติมพื้นที่ แผนที่จึงแสดงเฉพาะแม่น้ำ</li>');
+  }
+  lines.push(`<li>${vol ? 'ถ้าคันกั้นน้ำแตก: ' : ''}พื้นที่ที่ต่ำกว่าระดับแม่น้ำและต่อถึงแม่น้ำ <b class="num">${S.areaKm2.toFixed(0)} ตร.กม.</b> ต้องใช้น้ำราว <b class="num">${S.volMcm.toFixed(0)} ล้าน ลบ.ม.</b> จึงจะเต็ม`
+    + (res.bal.excess > 0 ? ` หรือเท่ากับน้ำที่ล้นตอนนี้ราว ${Math.round(S.volMcm / res.bal.excessMcm).toLocaleString()} วัน น้ำจึงจะท่วมที่ต่ำใกล้จุดล้นก่อน แล้วค่อยๆ แผ่ออก</li>` : '</li>'));
+  let head = '', k = 'lv2';
+  if (c.home) {
+    if (vol && res.homeVDepth > .05) { head = `บ้านอยู่ในที่ต่ำที่น้ำที่ล้นจะไหลไปถึงก่อน ลึกราว ${res.homeVDepth.toFixed(1)} ม. (ใน ${res.days} วัน กรณีหนักสุด)`; k = 'lv5'; }
+    else if (res.homeDepth > .05) {
+      head = vol ? `ใน ${res.days} วัน น้ำที่ล้นยังไม่น่าถึงบ้าน แต่บ้านต่ำกว่าระดับแม่น้ำราว ${res.homeDepth.toFixed(1)} ม. ถ้าคันกั้นน้ำใกล้บ้านแตกจะท่วม`
+        : `บ้านอยู่ในพื้นที่ที่น้ำจากแม่น้ำไหลมาถึงได้ ลึกราว ${res.homeDepth.toFixed(1)} ม.`;
+      k = vol ? 'lv4' : 'lv5';
+    }
+    else if (res.needRise != null) {
+      head = res.needRise < .5 ? `น้ำในแม่น้ำสูงขึ้นอีกเพียง ~${(res.needRise * 100).toFixed(0)} ซม. ก็ไหลมาถึงบ้านได้`
+        : `น้ำในแม่น้ำต้องสูงขึ้นอีกราว ${res.needRise.toFixed(1)} ม. (±1.5 ม.) จึงจะไหลมาถึงบ้าน`;
+      k = res.needRise < .5 ? 'lv4' : res.needRise < 1.5 ? 'lv3' : 'lv2';
+      // ใกล้สถานีที่ล้นตลิ่งอยู่ ไม่ให้ขึ้นว่าปลอดภัย
+      const nearOver = stations.some(s => s.pct > 100 && dist(c.lat, c.lng, s.lat, s.lng) < 5);
+      if (k === 'lv2' && nearOver) k = 'lv3';
+      if (res.needRise >= 1.5) lines.push('<li>ความสูงพื้นจากดาวเทียมในเขตเมืองหรือที่มีต้นไม้หนาแน่นอาจสูงเกินจริง 1–3 ม. อย่าใช้ตัวเลขนี้อย่างเดียวในการตัดสินใจว่าปลอดภัย</li>');
+    }
+    if (res.path && res.path.length > 1 && res.pathEnd) {
+      const [elng, elat] = toLngLat(res.pathEnd.idx % N + .5, ((res.pathEnd.idx / N) | 0) + .5);
+      const dir = bearing(c.lat, c.lng, elat, elng);
+      let name = '';
+      if (res.pathEnd.type === 'drain') {
+        let best = 1e9;
+        for (const w of riv.named) for (const [lng, lat] of w.coords) {
+          const dd = dist(elat, elng, lat, lng);
+          if (dd < best && dd < .5) { best = dd; name = w.name; }
+        }
+      }
+      const where = res.pathEnd.type === 'drain' ? (name ? `ลง${name}` : 'ลงแม่น้ำ/คลอง') : 'ออกนอกพื้นที่วิเคราะห์';
+      lines.push(`<li>น้ำฝนหรือน้ำท่วมจากบ้านคุณ <b>ไหลไปทาง${dir} ราว ${(res.pathEnd.lenM / 1000).toFixed(1)} กม. ${where}</b> (เส้นสีส้มบนแผนที่)</li>`);
+    }
+    if (res.pond) {
+      const [plng, plat] = toLngLat(res.pond.idx % N + .5, ((res.pond.idx / N) | 0) + .5);
+      lines.push(`<li>มีแอ่งต่ำที่น้ำฝนจะขัง${res.pond.depth > 3 ? ' (ลึกมาก อาจเป็นคูหรือบ่อที่แห้ง)' : ` ลึกราว ${res.pond.depth.toFixed(1)} ม.`} กว้างราว ${Math.round(res.pond.areaM2 / 1600).toLocaleString()} ไร่ ห่างบ้าน ${(dist(c.lat, c.lng, plat, plng) * 1000).toFixed(0)} ม. ทาง${bearing(c.lat, c.lng, plat, plng)} (จุดสีม่วง)</li>`);
+    }
+  } else {
+    head = 'ยังไม่ได้ปักหมุดบ้าน แสดงเฉพาะพื้นที่ที่น้ำไปถึงรอบสถานี';
+    k = 'lv3';
+  }
+  if (fcNote) lines.push(`<li>${esc(fcNote)}</li>`);
+  if (extra) lines.push(`<li>จำลองให้น้ำในแม่น้ำสูงขึ้นอีก ${extra.toFixed(1)} ม.</li>`);
+  const bg = {lv5: 'lv5-bg', lv4: 'lv4-bg', lv3: 'lv3-bg', lv2: 'ok-bg'}[k];
+  return `<div class="status" style="--st:var(--${k});--st-bg:var(--${bg})"><strong>${head}</strong></div>
+    <ul class="flowlist">${lines.join('')}</ul>
+    <p class="hint">คำนวณเสร็จใน ${(res.stats.ms / 1000).toFixed(1)} วินาที · ช่องกริดละ ~${Math.round(cellM)} ม. · ใช้ค่าต่ำสุดรอบๆ ~185 ม. เพื่อตัดต้นไม้/อาคาร${Math.abs(res.stats.bias) > .05 ? ` และปรับอีก ${res.stats.bias.toFixed(1)} ม. ตามตลิ่งที่สำรวจจริง` : ''}</p>`;
+}
+
+$('flowRun').addEventListener('click', runFlow);
+$('flowMode').addEventListener('change', e => {
+  $('flowModeHint').textContent = e.target.value === 'pot'
+    ? 'แสดงทุกที่ที่พื้นต่ำกว่าระดับน้ำในแม่น้ำและต่อถึงแม่น้ำ คือพื้นที่ที่จะท่วมได้ถ้าคันกั้นน้ำแตกหรือน้ำล้นข้าม ไม่ได้จำกัดปริมาณน้ำ'
+    : 'เอาปริมาณน้ำที่ล้นตลิ่งจริงตอนนี้ มาเติมลงที่ต่ำที่สุดที่ต่อกับแม่น้ำก่อน (สมมติว่าน้ำที่ล้นทั้งหมดไหลเข้ากรอบนี้ จึงเป็นกรณีหนักสุด)';
+});
+$('flowExtra').addEventListener('input', e => { $('flowExtraOut').textContent = `+${(+e.target.value).toFixed(1)} ม.`; });
+$('flowClear').addEventListener('click', () => {
+  for (const id of ['inund', 'fbox', 'fpath-casing', 'fpath', 'fpts']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', 'none');
+  map.setLayoutProperty('flood', 'visibility', 'visible');
+  $('flowClear').hidden = true; $('flowLegend').hidden = true; $('flowOut').innerHTML = '';
+});
 
 // ---------- แผนที่ฐาน / อาคาร / จำลองน้ำขึ้น ----------
 $('baseBtn').addEventListener('click', () => {
