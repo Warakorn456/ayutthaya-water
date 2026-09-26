@@ -6,6 +6,11 @@ const SHELL_FILES = ['./', 'index.html', '3d.html', 'data.js', 'ui.js', 'app.js'
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 const API = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load';
 
+const withTimeout = (p, ms) => new Promise((resolve, reject) => {
+  const tm = setTimeout(() => reject(new Error('timeout')), ms);
+  p.then(v => { clearTimeout(tm); resolve(v); }, err => { clearTimeout(tm); reject(err); });
+});
+
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(SHELL).then(c => c.addAll(SHELL_FILES)).then(() => self.skipWaiting()));
 });
@@ -21,7 +26,9 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   // ข้อมูลน้ำ/ฝน: ลองเน็ตก่อน ไม่ได้ค่อยใช้ของเก่า
   if (url.hostname === 'api-v3.thaiwater.net') {
-    e.respondWith(fetch(req).then(res => {
+    // เน็ตช้าเกินเวลา ให้ใช้ข้อมูลล่าสุดที่เก็บไว้แทน (ไฟล์ใหญ่ให้เวลามากกว่า)
+    const ms = url.pathname.includes('thailand_main') ? 50000 : url.pathname.includes('rain_24h') ? 30000 : 12000;
+    e.respondWith(withTimeout(fetch(req), ms).then(res => {
       if (res.ok) {
         // เก็บพร้อมเวลาที่โหลด เพื่อให้หน้าเว็บบอกได้ว่าข้อมูลเก่าแค่ไหนตอนออฟไลน์
         res.clone().blob().then(b => caches.open(DATA).then(c => c.put(req, new Response(b, {

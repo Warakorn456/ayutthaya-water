@@ -7,6 +7,11 @@ const NEAR = ['14','15','16','17','18','19','12','13','72','60'];
 const CENTRAL = ['10','11','12','13','14','15','16','17','18','19','24','25','26','60','61','70','72','73','74','75'];
 
 const $ = id => document.getElementById(id);
+// fetch ที่มีเวลาจำกัด: เน็ตช้า/ค้างช่วงน้ำท่วม จะได้ไม่รอไม่รู้จบ
+async function fetchT(url, ms, opts = {}){
+  const c = new AbortController(), tm = setTimeout(() => c.abort(), ms);
+  try { return await fetch(url, {...opts, signal: c.signal}); } finally { clearTimeout(tm); }
+}
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 
 function level(p){
@@ -44,7 +49,7 @@ function parse(json){
 async function fetchStations(){
   for (const url of [API, '/api/waterlevel']) {
     try {
-      const r = await fetch(url, {cache:'no-store'});
+      const r = await fetchT(url, 25000, {cache: 'no-store'});
       if (r.ok) {
         const json = await r.json();
         // ออฟไลน์: service worker ส่งข้อมูลเก่ามาให้ พร้อมเวลาที่เก็บไว้
@@ -71,7 +76,7 @@ function fetchHistory(id, days = 7){
   if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.p;
   const p = (async () => {
     const end = new Date(), start = new Date(Date.now() - days * 864e5);
-    const r = await fetch(`${API_BASE}/waterlevel_graph?station_type=tele_waterlevel&station_id=${encodeURIComponent(id)}&start_date=${ymd(start)}&end_date=${ymd(end)}`);
+    const r = await fetchT(`${API_BASE}/waterlevel_graph?station_type=tele_waterlevel&station_id=${encodeURIComponent(id)}&start_date=${ymd(start)}&end_date=${ymd(end)}`, 20000);
     if (!r.ok) throw new Error('history ' + r.status);
     const d = (await r.json())?.data || {};
     const points = (d.graph_data || []).map(g => ({
@@ -139,7 +144,7 @@ const DAMS = ['ภูมิพล', 'สิริกิติ์', 'แควน
 
 // ฝนสะสม 24 ชม. ทุกสถานี
 async function fetchRain(){
-  const r = await fetch(API_BASE + '/rain_24h');
+  const r = await fetchT(API_BASE + '/rain_24h', 40000);
   if (!r.ok) throw new Error('rain ' + r.status);
   return ((await r.json())?.data || []).map(d => ({
     name: d.station?.tele_station_name?.th || '-', lat: num(d.station?.tele_station_lat), lng: num(d.station?.tele_station_long),
@@ -158,7 +163,7 @@ function rainLevel(mm){
 // เขื่อนหลัก (ไฟล์ใหญ่ เก็บ cache 1 ชม.)
 async function fetchDams(){
   try { const c = JSON.parse(localStorage.getItem('wl-dams')); if (c && Date.now() - c.at < 36e5) return c.dams; } catch (e) {}
-  const r = await fetch(API_BASE + '/thailand_main');
+  const r = await fetchT(API_BASE + '/thailand_main', 60000);
   if (!r.ok) throw new Error('dams ' + r.status);
   const all = (await r.json())?.dam?.data?.data || [];
   const dams = DAMS.map(n => all.find(d => d.dam?.dam_name?.th === n)).filter(Boolean).map(d => ({
