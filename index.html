@@ -444,7 +444,7 @@ function renderHome(){
   el.innerHTML = `<div class="row"><span class="eyebrow">บ้านของคุณ</span><button type="button" class="link" data-act="pick">เปลี่ยนตำแหน่งบ้าน</button></div>
     <div><span class="badge ${lv.k}">${V.word}</span></div>
     <p class="big">${byFc ? 'ตอนนี้ยังไม่ล้นตลิ่ง แต่พยากรณ์บอกว่าอาจล้นเร็วๆ นี้' : V.line}</p>
-    <p>แม่น้ำใกล้บ้าน: <b>${esc(w.s.name)}</b> (ห่าง ${w.d.toFixed(1)} กม.) น้ำเต็มตลิ่ง <b class="num">${w.s.pct.toFixed(0)}%</b>${move}</p>
+    <p>แม่น้ำใกล้บ้าน: <b>${esc(w.s.name)}</b> (ห่าง ${w.d.toFixed(1)} กม.) น้ำเต็มตลิ่ง <b class="num">${w.s.pct < 100 ? Math.floor(w.s.pct) : Math.round(w.s.pct)}%</b>${move}</p>
     ${S ? `<div class="ready"><span class="eyebrow">พยากรณ์ 3 วันข้างหน้า</span><b>${S.head}</b>${S.sub ? `<span>${S.sub}</span>` : ''}
       ${S.readyBy ? `<span class="when">${S.readyBy - Date.now() < 36e5 ? 'ควรพร้อมอพยพตั้งแต่ตอนนี้' : 'ควรพร้อมอพยพก่อน ' + fcWhen(S.readyBy)}</span>
         <span class="hint">คิดจากเวลาที่เร็วที่สุดที่น้ำอาจถึงตลิ่ง ลบออก 6 ชั่วโมงเพื่อให้มีเวลาเดินทาง</span>` : ''}</div>`
