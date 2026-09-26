@@ -37,7 +37,7 @@ function parse(json){
       amphoe: g.amphoe_name?.th || '',
       msl, prev, bank, ground: num(s.ground_level),
       leftBank: num(s.left_bank), rightBank: num(s.right_bank),
-      pct: num(d.storage_percent), sit: d.situation_level, q: num(d.discharge),
+      pct: num(d.storage_percent), sit: d.situation_level, q: num(d.discharge), qmax: num(s.qmax),
       toBank: (msl != null && bank != null) ? bank - msl : null,
       trend: (msl != null && prev != null) ? (msl - prev) * 100 : null,
       time: d.waterlevel_datetime || ''

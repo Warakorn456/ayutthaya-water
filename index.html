@@ -105,7 +105,11 @@ header.top .meta{font-size:.85rem}
 .ready{background:var(--surface);border-radius:12px;padding:12px 14px;display:grid;gap:4px;border:2px dashed var(--st,var(--line))}
 .ready .when{font-size:1.3rem;font-weight:700;color:var(--lv5);line-height:1.3}
 .rainfc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-.rainfc a{display:grid;gap:4px;text-decoration:none;color:var(--ink);font-size:.85rem;text-align:center}
+.rainfc .imgbtn{display:grid;gap:4px;padding:0;border:0;background:none;color:var(--ink);font-size:.85rem;text-align:center;min-height:0}
+dialog.imgdlg{border:0;border-radius:14px;padding:12px;max-width:min(94vw,720px);background:var(--surface);color:var(--ink)}
+dialog.imgdlg::backdrop{background:rgba(0,0,0,.6)}
+dialog.imgdlg img{width:100%;border-radius:8px;display:block}
+dialog.imgdlg .dhead{margin-bottom:8px}
 .rainfc img{width:100%;border-radius:8px;border:1px solid var(--line);aspect-ratio:3/4;object-fit:cover;background:var(--bg)}
 ul.todo{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 ul.todo label{display:grid;grid-template-columns:24px 1fr;gap:8px;align-items:start;cursor:pointer;min-height:32px}
@@ -194,7 +198,7 @@ tr.row-click:hover td{background:color-mix(in srgb,var(--accent) 7%,transparent)
     <button type="button" role="tab" data-tab="map" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2z"/><path d="M9 4v14M15 6v14"/></svg>แผนที่</button>
     <button type="button" role="tab" data-tab="up" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M3 20c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0"/></svg>น้ำเหนือ</button>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M3 20c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0"/></svg>ปริมาณน้ำ</button>
     <button type="button" role="tab" data-tab="list" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></svg>สถานี</button>
     <button type="button" role="tab" data-tab="alert" aria-selected="false">
@@ -276,11 +280,16 @@ tr.row-click:hover td{background:color-mix(in srgb,var(--accent) 7%,transparent)
 
   <!-- ===== น้ำเหนือ ===== -->
   <section class="tab" id="tab-up" role="tabpanel" hidden>
+    <section class="panel">
+      <h2>น้ำมากเกินกว่าที่แม่น้ำในอยุธยารับได้หรือยัง</h2>
+      <div id="balance"><p class="hint">กำลังคำนวณ…</p></div>
+      <p class="hint">"รับได้" คือปริมาณน้ำที่ไหลได้ตอนน้ำเต็มตลิ่งพอดี ตามข้อมูลกรมชลประทาน ส่วนที่เกินจะล้นออกไปท่วมพื้นที่สองฝั่ง</p>
+    </section>
     <section class="panel" id="upstream">
-      <h2>น้ำจากทางเหนือ กำลังมาเพิ่มหรือลดลง</h2>
+      <h2>เส้นทางน้ำ: ไหลมาเท่าไหร่ ลำน้ำรับได้แค่ไหน</h2>
       <div id="upSummary"><p class="hint">กำลังโหลดอัตราการไหล…</p></div>
-      <div id="rivers" style="display:grid;gap:14px"></div>
-      <p class="hint">เรียงจากต้นน้ำลงมาถึงอยุธยา · ตัวเลขคือปริมาณน้ำที่ไหลผ่าน (ลูกบาศก์เมตรต่อวินาที) · % คือเทียบกับเมื่อวานเวลาเดียวกัน · เส้นเล็กคือ 7 วันล่าสุด</p>
+      <div id="rivers"></div>
+      <p class="hint">เรียงจากต้นน้ำลงมา · ตัวเลขใหญ่คือน้ำที่ไหลผ่าน (ลูกบาศก์เมตรต่อวินาที) · แถบคือใช้ความจุลำน้ำไปกี่ % ขีดดำคือเต็มตลิ่ง · ความหนาของเส้นน้ำตามปริมาณน้ำ · เส้นเล็กคือ 7 วันล่าสุด</p>
     </section>
     <div class="split">
       <section class="panel"><h2>ฝนหนักสุดใน 24 ชม.</h2><p class="hint">อยุธยาและจังหวัดใกล้เคียง</p><ol class="rain" id="rainTop"><li class="hint">กำลังโหลด…</li></ol></section>
@@ -341,11 +350,17 @@ tr.row-click:hover td{background:color-mix(in srgb,var(--accent) 7%,transparent)
   </section>
 </div>
 
+<dialog id="imgDlg" class="imgdlg" aria-labelledby="imgDlgTitle">
+  <div class="dhead"><b id="imgDlgTitle"></b><button type="button" id="imgDlgClose">ปิด</button></div>
+  <img id="imgDlgImg" alt="">
+</dialog>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="data.js"></script>
-<script src="forecast.js"></script>
-<script src="ui.js"></script>
-<script src="app.js"></script>
+<script src="data.js?v=6"></script>
+<script src="flow.js?v=6"></script>
+<script src="forecast.js?v=6"></script>
+<script src="ui.js?v=6"></script>
+<script src="app.js?v=6"></script>
 <script>
 let stations = [], me = null, meMarker = null, markers = L.layerGroup(), detailId = null;
 let rain = null, rainLayer = L.layerGroup(), picking = false;
@@ -453,7 +468,8 @@ function renderHome(){
     ${V.todo.length ? `<h3>ควรทำตอนนี้ <span class="meta">(ติ๊กเมื่อทำแล้ว)</span></h3><ul class="todo">${V.todo.map(t =>
       `<li><label><input type="checkbox" data-todo="${esc(t)}"${todoDone().includes(t) ? ' checked' : ''}><span>${t}</span></label></li>`).join('')}</ul>` : ''}
     <div class="controls"><button type="button" class="primary" data-graph="${esc(w.s.id)}">ดูกราฟระดับน้ำ</button>
-      <button type="button" data-act="tab:map">ดูบนแผนที่</button></div>`;
+      <button type="button" data-act="tab:map">ดูบนแผนที่</button>
+      <a class="btn" href="3d.html#flow">น้ำจะไหลไปทางไหนรอบบ้าน</a></div>`;
   if (!S && homeFcPending !== w.s.id) {
     homeFcPending = w.s.id;
     forecastModel(w.s).then(fc => {
@@ -509,11 +525,13 @@ function renderOutlook(){
   $('outlook').innerHTML = `<h2>อีก 1–2 วันข้างหน้า</h2>
     <div class="hero" style="--st:var(--${k});--st-bg:var(--${k === 'lv2' ? 'ok-bg' : k + '-bg'});padding:12px 14px"><p class="big">${head}</p></div>
     <ul class="tips">
+      ${balNow && balNow.inAyt ? `<li>${balNow.excess > 0 ? `<b class="up">แม่น้ำในอยุธยารับน้ำไม่ไหวแล้ว</b> น้ำล้นตลิ่งราว ${balNow.excessMcm.toFixed(1)} ล้าน ลบ.ม. ต่อวัน`
+        : `แม่น้ำในอยุธยายังรับน้ำได้ (ใช้ความจุ ${Math.round(balNow.inAyt / balNow.capAyt * 100)}%)`}</li>` : ''}
       <li>น้ำที่ผ่านเขื่อนเจ้าพระยา (ชัยนาท): ${word(c13)} จากเมื่อวาน · มักใช้เวลา 1–2 วันกว่าจะถึงอยุธยา</li>
       <li>แม่น้ำป่าสัก (เขื่อนพระรามหก): ${word(s26)} จากเมื่อวาน · ถึงอยุธยาภายในไม่กี่ชั่วโมงถึง 1 วัน</li>
       ${heavy ? `<li>ฝนหนักใน 24 ชม.: ${heavy.length} จุด${top ? ` (มากสุด ${top.r24.toFixed(0)} มม. ที่ อ.${esc(top.amphoe)} จ.${esc(top.prov)})` : ''}</li>` : ''}
     </ul>
-    <div class="controls"><button type="button" data-act="tab:up">ดูน้ำเหนือทั้งหมด</button></div>
+    <div class="controls"><button type="button" data-act="tab:up">ดูปริมาณน้ำทั้งหมด</button></div>
     <p class="hint">เป็นการประเมินจากแนวโน้ม ไม่ใช่พยากรณ์อย่างเป็นทางการ ติดตามประกาศของกรมชลประทานและ ปภ. ประกอบ</p>`;
 }
 
@@ -524,27 +542,24 @@ function sparkPath(points, w = 100, h = 28){
   const lo = Math.min(...q.map(p => p.q)), hi = Math.max(...q.map(p => p.q)), t0 = q[0].t, t1 = q[q.length - 1].t;
   return q.map((p, i) => `${i ? 'L' : 'M'}${((p.t - t0) / Math.max(t1 - t0, 1) * w).toFixed(1)},${(2 + (hi - p.q) / Math.max(hi - lo, 1) * (h - 4)).toFixed(1)}`).join('');
 }
+let balNow = null;
 async function loadUpstream(){
-  const all = RIVERS.flatMap(r => r.stations);
-  await Promise.all(all.map(async st => {
+  await Promise.all(FLOW_IDS.map(async id => {
+    const s = stations.find(x => x.id === id);
     try {
-      const h = await fetchHistory(st.id);
+      const h = await fetchHistory(id);
       const q = h.points.filter(p => p.q != null), last = q[q.length - 1];
-      const s = stations.find(x => x.id === st.id);
       const now = s?.q ?? last?.q ?? null;
       const prev = last ? valueAt(h.points, last.t - 24 * 36e5, 'q') : null;
-      upInfo[st.id] = {now, chg: now != null && prev ? (now - prev) / prev * 100 : null, spark: sparkPath(h.points), t: last?.t};
-    } catch (e) { upInfo[st.id] = {now: stations.find(x => x.id === st.id)?.q ?? null, chg: null, spark: ''}; }
+      upInfo[id] = {now, prev, cap: s?.qmax ?? null, chg: now != null && prev ? (now - prev) / prev * 100 : null, spark: sparkPath(h.points, 100, 24)};
+    } catch (e) { upInfo[id] = {now: s?.q ?? null, prev: null, cap: s?.qmax ?? null, chg: null, spark: ''}; }
   }));
-  const chg = c => c == null ? '<span class="meta">-</span>' : Math.abs(c) < 3 ? '<span class="meta">ทรงตัว</span>'
-    : c > 0 ? `<span class="up">▲ ${c.toFixed(0)}%</span>` : `<span class="down">▼ ${(-c).toFixed(0)}%</span>`;
-  $('rivers').innerHTML = RIVERS.map(r => `<div style="display:grid;gap:6px"><h3>${r.name}</h3><ol class="flow">${r.stations.map(st => {
-    const u = upInfo[st.id] || {};
-    return `<li class="node${st.place.includes('อยุธยา') ? ' ayt' : ''}"><span class="code">${st.code} · ${esc(st.place)}</span>
-      <span class="q num">${u.now != null ? Math.round(u.now).toLocaleString() : '-'}</span>
-      <span>${chg(u.chg)} <span class="meta">จากเมื่อวาน</span></span>
-      ${u.spark ? `<svg viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true"><path d="${u.spark}" vector-effect="non-scaling-stroke"/></svg>` : ''}</li>`;
-  }).join('')}</ol></div>`).join('');
+  const pick = key => Object.fromEntries(FLOW_IDS.map(id => [id, upInfo[id]?.[key] ?? null]));
+  const cap = pick('cap');
+  balNow = flowBalance(pick('now'), cap);
+  const prevQ = pick('prev'), balBefore = FLOW_IDS.every(id => prevQ[id] != null || !cap[id]) ? flowBalance(prevQ, cap) : null;
+  $('balance').innerHTML = balanceHtml(balNow, balBefore);
+  $('rivers').innerHTML = flowDiagramHtml(pick('now'), cap, pick('chg'), pick('spark'));
   const c13 = upInfo['2744'], s26 = upInfo['2624'];
   const say = (u, where, travel) => {
     if (!u || u.chg == null) return '';
@@ -587,8 +602,8 @@ async function loadDams(){
   let main;
   try { main = await fetchMain(); dams = main.dams; } catch (e) {
     $('dams').innerHTML = '<p class="err">โหลดข้อมูลเขื่อนไม่ได้</p>'; $('rainFc').innerHTML = '<p class="err">โหลดภาพฝนคาดการณ์ไม่ได้</p>'; return; }
-  $('rainFc').innerHTML = main.rainFc.length ? main.rainFc.map((r, i) => `<a href="${esc(r.url)}" target="_blank" rel="noopener">
-      <img src="${esc(r.url)}" alt="แผนที่ฝนคาดการณ์ ${esc(r.label)}" loading="lazy"><span>${esc(r.label)}</span></a>`).join('')
+  $('rainFc').innerHTML = main.rainFc.length ? main.rainFc.map(r => `<button type="button" class="imgbtn" data-img="${esc(r.url)}" data-label="ฝนคาดการณ์ ${esc(r.label)}">
+      <img src="${esc(r.url)}" alt="แผนที่ฝนคาดการณ์ ${esc(r.label)}" loading="lazy"><span>${esc(r.label)}</span></button>`).join('')
     : '<p class="hint">ไม่มีภาพฝนคาดการณ์</p>';
   $('dams').innerHTML = dams.map(d => {
     const k = d.pct >= 90 ? 'lv5' : d.pct >= 80 ? 'lv4' : 'accent';
@@ -727,6 +742,8 @@ map.on('click', e => { if (picking) pickAt(e.latlng); });
 document.addEventListener('click', e => {
   const g = e.target.closest('[data-graph]');
   if (g) { const s = stations.find(x => x.id === g.dataset.graph); if (s) openDetail(s, true); return; }
+  const im = e.target.closest('[data-img]');
+  if (im) { $('imgDlgImg').src = im.dataset.img; $('imgDlgImg').alt = im.dataset.label; $('imgDlgTitle').textContent = im.dataset.label; $('imgDlg').showModal(); return; }
   const a = e.target.closest('[data-act]');
   if (!a) return;
   const act = a.dataset.act;
@@ -740,6 +757,8 @@ $('rows').addEventListener('click', e => {
   if (s) { map.setView([s.lat, s.lng], 12); openDetail(s, true); }
 });
 $('pickHome').addEventListener('click', () => startPick());
+$('imgDlgClose').addEventListener('click', () => $('imgDlg').close());
+$('imgDlg').addEventListener('click', e => { if (e.target === $('imgDlg')) $('imgDlg').close(); });
 $('pickCancel').addEventListener('click', stopPick);
 $('locate').addEventListener('click', locate);
 $('rainOn').addEventListener('change', () => { try { localStorage.setItem('wl-rain', $('rainOn').checked ? '1' : ''); } catch (e) {} renderRain(); });

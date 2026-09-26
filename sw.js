@@ -2,7 +2,7 @@
 const SHELL = 'wl-shell-v1';
 const DATA = 'wl-data-v1';
 const CONFIG = 'wl-config';
-const SHELL_FILES = ['./', 'index.html', '3d.html', 'data.js', 'ui.js', 'app.js', 'forecast.js', 'manifest.webmanifest',
+const SHELL_FILES = ['./', 'index.html', '3d.html', 'data.js', 'ui.js', 'app.js', 'forecast.js', 'flow.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 const API = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load';
 
