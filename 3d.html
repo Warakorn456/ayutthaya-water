@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ระดับน้ำอยุธยา 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.21.0/dist/maplibre-gl.css">
+<style>
+:root{
+  --bg:#eef3f5; --surface:#ffffff; --ink:#0f2530; --muted:#557180; --line:#d3dfe4;
+  --accent:#0b6e8a; --earth:#b99a72; --earth-line:#7d6245; --water:#2f7fd0; --land:#3f7a3a;
+  --lv0:#8a9aa3; --lv1:#2f8fce; --lv2:#2e9e5b; --lv3:#d9a300; --lv4:#e0701a; --lv5:#d12f2f;
+  --lv5-bg:#fde7e5; --lv4-bg:#fdefe2; --lv3-bg:#fbf4d9; --ok-bg:#e3f4ea;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0c1a21; --surface:#132831; --ink:#e3eef2; --muted:#8fa9b5; --line:#24404c;
+    --accent:#4fb6d4; --earth:#6b5640; --earth-line:#b39570; --water:#4a9be6; --land:#7cc374;
+    --lv5-bg:#3a1a1a; --lv4-bg:#3a2614; --lv3-bg:#35300f; --ok-bg:#12301f;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0c1a21; --surface:#132831; --ink:#e3eef2; --muted:#8fa9b5; --line:#24404c;
+  --accent:#4fb6d4; --earth:#6b5640; --earth-line:#b39570; --water:#4a9be6; --land:#7cc374;
+  --lv5-bg:#3a1a1a; --lv4-bg:#3a2614; --lv3-bg:#35300f; --ok-bg:#12301f;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 "IBM Plex Sans Thai",Tahoma,"Leelawadee UI",sans-serif}
+.wrap{max-width:1280px;margin:0 auto;padding-inline:16px;padding-block:16px 40px;display:grid;gap:16px}
+.num{font-family:"IBM Plex Mono",Consolas,monospace;font-variant-numeric:tabular-nums}
+h1,h2{margin:0;text-wrap:balance}
+h1{font-size:1.5rem;line-height:1.2}
+h2{font-size:1.05rem}
+a{color:var(--accent)}
+header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.meta{color:var(--muted);font-size:.85rem}
+a.btn{display:inline-block;text-decoration:none;font-weight:500;border:1px solid var(--accent);border-radius:8px;padding:6px 12px}
+button,select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer;max-width:100%}
+button:hover{border-color:var(--accent)}
+button:focus-visible,select:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+#map{height:min(72vh,720px);min-height:380px;border-radius:12px;border:1px solid var(--line)}
+.side{display:grid;gap:16px;min-width:0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:grid;gap:10px;min-width:0}
+.field{display:grid;gap:4px;min-width:0}
+.panel>*,.side>*{min-width:0}
+.field select{width:100%}
+.field label{font-size:.82rem;color:var(--muted)}
+.field .row{display:flex;gap:10px;align-items:center}
+.field input[type=range]{flex:1;accent-color:var(--accent);min-width:0}
+.field output{min-width:5.5em;text-align:right}
+.status{border-radius:10px;padding:10px 12px;display:grid;gap:2px;border-left:6px solid var(--st,var(--lv0));background:var(--st-bg,var(--bg))}
+.status strong{font-size:1.05rem}
+.pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.78rem;font-weight:500;color:#fff;white-space:nowrap}
+.hint{color:var(--muted);font-size:.82rem;margin:0}
+.err{color:var(--lv5);font-weight:500}
+.up{color:var(--lv5)} .down{color:var(--lv2)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:.8rem;color:var(--muted)}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:middle}
+svg.section{width:100%;height:auto;display:block}
+svg.section text{font:500 11px "IBM Plex Sans Thai",Tahoma,sans-serif;fill:var(--ink)}
+svg.section .earth{fill:var(--earth);stroke:var(--earth-line);stroke-width:1.5}
+svg.section .water{fill:var(--water);opacity:.75}
+svg.section .wline{stroke:var(--water);stroke-width:2}
+svg.section .land{stroke:var(--land);stroke-width:1.5;stroke-dasharray:5 4;fill:none}
+svg.section .grid{stroke:var(--line);stroke-width:1}
+svg.section .tick{fill:var(--muted)}
+.warn{font-size:.82rem;color:var(--muted);border-left:3px solid var(--lv3);padding-left:10px;margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>ระดับน้ำอยุธยา 3D</h1>
+      <div class="meta">ระดับน้ำ: <a href="https://www.thaiwater.net" target="_blank" rel="noopener">thaiwater.net</a> · ความสูงพื้นดิน: ดาวเทียม SRTM · <span id="updated">กำลังโหลด…</span></div>
+    </div>
+    <div class="controls">
+      <a class="btn" href="index.html">แผนที่ 2D / ตาราง</a>
+      <button id="refresh" class="primary" type="button">รีเฟรช</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <div id="map" role="region" aria-label="แผนที่ 3 มิติ"></div>
+
+    <div class="side">
+      <section class="panel">
+        <div class="field">
+          <label for="station">สถานีวัดน้ำ</label>
+          <select id="station"></select>
+        </div>
+        <div id="section"><p class="hint">กำลังโหลด…</p></div>
+      </section>
+
+      <section class="panel">
+        <h2>พื้นที่ต่ำกว่าระดับน้ำ</h2>
+        <div class="field">
+          <label for="flood">ระบายสีฟ้าทุกพื้นที่ที่พื้นดินต่ำกว่า (ม.รทก.)</label>
+          <div class="row"><input id="flood" type="range" min="0" max="10" step="0.05" value="4"><output id="floodOut" class="num" for="flood">-</output></div>
+        </div>
+        <div class="controls">
+          <label for="radius" class="meta">ในรัศมีจากสถานี</label>
+          <select id="radius"><option>5</option><option selected>15</option><option>30</option></select><span class="meta">กม.</span>
+          <button id="resetFlood" type="button">ใช้ระดับน้ำจริง</button>
+        </div>
+        <div class="legend">
+          <span><i class="sw" style="background:rgba(120,190,245,.7)"></i>ต่ำกว่า 0–0.5 ม.</span>
+          <span><i class="sw" style="background:rgba(40,120,220,.8)"></i>ต่ำกว่า 1–2 ม.</span>
+          <span><i class="sw" style="background:rgba(15,55,150,.9)"></i>ต่ำกว่า &gt;2 ม.</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>บ้านของฉันสูงแค่ไหน</h2>
+        <button id="locate" type="button">ใช้ตำแหน่งของฉัน</button>
+        <div id="me"><p class="hint">หรือแตะบนแผนที่ตรงบ้านของคุณ</p></div>
+      </section>
+
+      <section class="panel">
+        <div class="field">
+          <label for="exag">ขยายความสูงภูมิประเทศ (อยุธยาเป็นที่ราบมาก)</label>
+          <div class="row"><input id="exag" type="range" min="1" max="40" step="1" value="20"><output id="exagOut" class="num" for="exag">20×</output></div>
+        </div>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--muted);opacity:.5"></i>แท่งเทา = ความสูงตลิ่ง</span>
+          <span><i class="sw" style="background:var(--lv5)"></i>แท่งสี = ระดับน้ำ (สีตามความเสี่ยง)</span>
+        </div>
+        <p class="hint">แท่งวัดจากท้องน้ำ ถ้าแท่งสีโผล่พ้นแท่งเทา แปลว่าน้ำล้นตลิ่ง ลากสองนิ้วหรือคลิกขวาค้างเพื่อหมุน/เอียงแผนที่</p>
+      </section>
+
+      <p class="warn">ความสูงพื้นดินมาจากดาวเทียม SRTM (ละเอียดราว 30 ม.) ซึ่งวัดรวมต้นไม้และอาคาร จึงปรับลดด้วยความสูงตลิ่งที่สำรวจจริงของสถานีใกล้เคียงแล้ว แต่ยังคลาดเคลื่อนได้ราว ±1.5 ม.
+        ชั้นสีฟ้าแสดงแค่ "พื้นต่ำกว่าระดับน้ำ" ไม่ได้แปลว่าน้ำจะไปถึงแน่ เพราะมีคันกั้นน้ำและประตูระบายน้ำ
+        ดูน้ำท่วมจริงที่ <a href="https://flood.gistda.or.th" target="_blank" rel="noopener">GISTDA</a> · ฉุกเฉินโทร <b class="num">1784</b></p>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.21.0/dist/maplibre-gl.js"></script>
+<script src="data.js"></script>
+<script>
+const DEM_URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png';
+let stations = [], current = null, floodCenter = null, floodBias = 1.2, meMarker = null, meResult = null;
+
+// ---------- ความสูงพื้นดินจาก DEM (terrarium) ----------
+const canvasOf = (w, h) => typeof OffscreenCanvas !== 'undefined'
+  ? new OffscreenCanvas(w, h) : Object.assign(document.createElement('canvas'), {width: w, height: h});
+const toPng = c => c.convertToBlob ? c.convertToBlob({type: 'image/png'}) : new Promise(r => c.toBlob(r, 'image/png'));
+
+const demCache = new Map();
+function demTile(z, x, y){
+  const k = `${z}/${x}/${y}`;
+  if (!demCache.has(k)) {
+    const p = (async () => {
+      const r = await fetch(DEM_URL.replace('{z}', z).replace('{x}', x).replace('{y}', y));
+      if (!r.ok) throw new Error('DEM ' + r.status);
+      const bmp = await createImageBitmap(await r.blob());
+      const c = canvasOf(256, 256), ctx = c.getContext('2d', {willReadFrequently: true});
+      ctx.drawImage(bmp, 0, 0);
+      const d = ctx.getImageData(0, 0, 256, 256).data, e = new Float32Array(65536);
+      for (let i = 0; i < 65536; i++) e[i] = d[i * 4] * 256 + d[i * 4 + 1] + d[i * 4 + 2] / 256 - 32768;
+      return e;
+    })();
+    p.catch(() => demCache.delete(k));
+    demCache.set(k, p);
+    if (demCache.size > 300) demCache.delete(demCache.keys().next().value);
+  }
+  return demCache.get(k);
+}
+const lng2x = (lng, z) => (lng + 180) / 360 * 2 ** z;
+const lat2y = (lat, z) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 2 ** z; };
+const y2lat = (y, z) => Math.atan(Math.sinh(Math.PI * (1 - 2 * y / 2 ** z))) * 180 / Math.PI;
+const x2lng = (x, z) => x / 2 ** z * 360 - 180;
+
+async function elevAt(lat, lng, z = 14){
+  const fx = lng2x(lng, z), fy = lat2y(lat, z);
+  const x = Math.floor(fx), y = Math.floor(fy);
+  const e = await demTile(z, x, y);
+  return e[Math.min(255, Math.floor((fy - y) * 256)) * 256 + Math.min(255, Math.floor((fx - x) * 256))];
+}
+// ความสูงพื้นดินตรงจุด: 25 จุดในสี่เหลี่ยม ~120 ม. ใช้ควอไทล์ล่าง (ดาวเทียมมักสูงเกินเพราะต้นไม้/อาคาร)
+async function groundAt(lat, lng){
+  const kx = 111320 * Math.cos(lat * Math.PI / 180), v = [];
+  for (let i = -2; i <= 2; i++) for (let j = -2; j <= 2; j++)
+    v.push(elevAt(lat + i * 30 / 111320, lng + j * 30 / kx).catch(() => null));
+  const r = (await Promise.all(v)).filter(x => x != null && x > -50).sort((a, b) => a - b);
+  if (!r.length) throw new Error('no DEM');
+  return r[Math.floor(r.length / 4)];
+}
+// ความสูงพื้นที่ราบรอบสถานี: ค่ามัธยฐานของจุดรอบวง 400 ม. และ 800 ม.
+async function landAround(lat, lng){
+  const pts = [];
+  for (const r of [0.4, 0.8]) for (let i = 0; i < 12; i++) {
+    const a = i / 12 * 2 * Math.PI;
+    pts.push([lat + r / 111.32 * Math.sin(a), lng + r / (111.32 * Math.cos(lat * Math.PI / 180)) * Math.cos(a)]);
+  }
+  const v = (await Promise.all(pts.map(p => elevAt(p[0], p[1]).catch(() => null)))).filter(x => x != null && x > -50).sort((a, b) => a - b);
+  return v.length ? v[Math.floor(v.length / 2)] : null;
+}
+
+// ปรับเทียบ DEM: ดาวเทียมวัดรวมต้นไม้/อาคาร จึงสูงเกินจริง (เฉลี่ย ~1.2 ม. ในลุ่มเจ้าพระยา)
+// ใช้ค่ามัธยฐานของ (DEM รอบสถานี − ตลิ่งที่สำรวจจริง) จาก 5 สถานีที่ใกล้ที่สุด
+const DEFAULT_BIAS = 1.2;
+const stationLand = new Map();
+function landOf(s){
+  if (!stationLand.has(s.id)) stationLand.set(s.id, landAround(s.lat, s.lng).catch(() => null));
+  return stationLand.get(s.id);
+}
+async function biasAt(lat, lng){
+  const near = stations.filter(s => s.bank != null && (s.leftBank != null || s.rightBank != null))
+    .map(s => ({s, d: dist(lat, lng, s.lat, s.lng)})).filter(x => x.d < 25).sort((a, b) => a.d - b.d).slice(0, 5);
+  const b = [];
+  for (const {s} of near) {
+    const land = await landOf(s);
+    if (land != null) b.push(land - Math.max(s.leftBank ?? s.bank, s.rightBank ?? s.bank));
+  }
+  if (!b.length) return DEFAULT_BIAS;
+  b.sort((x, y) => x - y);
+  return Math.min(4, Math.max(0, b[Math.floor(b.length / 2)]));
+}
+
+// ---------- ชั้น "พื้นที่ต่ำกว่าระดับน้ำ" ----------
+let blankPng = null;
+async function blank(){
+  if (!blankPng) { const c = canvasOf(1, 1); c.getContext('2d'); blankPng = await (await toPng(c)).arrayBuffer(); }
+  return blankPng.slice(0); // MapLibre ส่ง buffer ไป worker แล้วใช้ซ้ำไม่ได้
+}
+maplibregl.addProtocol('flood', async (params) => {
+  const u = new URL(params.url.replace('flood://', 'http://x/'));
+  const [z, x, y] = u.pathname.split('/').filter(Boolean).map(Number);
+  const h = +u.searchParams.get('h') + (+u.searchParams.get('b') || 0), cLat = +u.searchParams.get('lat'), cLng = +u.searchParams.get('lng'), R = +u.searchParams.get('r');
+  // ข้าม tile ที่อยู่นอกรัศมีทั้งแผ่น
+  const n = y2lat(y, z), s = y2lat(y + 1, z), w = x2lng(x, z), e = x2lng(x + 1, z);
+  if (dist(cLat, cLng, Math.min(Math.max(cLat, s), n), Math.min(Math.max(cLng, w), e)) > R) return {data: await blank()};
+  const raw = await demTile(z, x, y);
+  // เฉลี่ย 3×3 ลดจุดรบกวนของข้อมูลดาวเทียม
+  const tmp = new Float32Array(65536), dem = new Float32Array(65536);
+  for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++)
+    tmp[j * 256 + i] = (raw[j * 256 + Math.max(i - 1, 0)] + raw[j * 256 + i] + raw[j * 256 + Math.min(i + 1, 255)]) / 3;
+  for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++)
+    dem[j * 256 + i] = (tmp[Math.max(j - 1, 0) * 256 + i] + tmp[j * 256 + i] + tmp[Math.min(j + 1, 255) * 256 + i]) / 3;
+  const c = canvasOf(256, 256), ctx = c.getContext('2d'), img = ctx.createImageData(256, 256), px = img.data;
+  const kx = 111.32 * Math.cos(cLat * Math.PI / 180);
+  for (let j = 0; j < 256; j++) {
+    const lat = y2lat(y + (j + .5) / 256, z), dy = (lat - cLat) * 111.32;
+    for (let i = 0; i < 256; i++) {
+      const lng = x2lng(x + (i + .5) / 256, z), dx = (lng - cLng) * kx;
+      if (dx * dx + dy * dy > R * R) continue;
+      const depth = h - dem[j * 256 + i];
+      if (depth <= 0) continue;
+      const t = Math.min(depth / 2.5, 1), o = (j * 256 + i) * 4;
+      px[o] = 120 - 105 * t; px[o + 1] = 190 - 135 * t; px[o + 2] = 245 - 95 * t; px[o + 3] = 170 + 60 * t;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return {data: await (await toPng(c)).arrayBuffer()};
+});
+
+// ---------- แผนที่ ----------
+const map = new maplibregl.Map({
+  container: 'map',
+  center: [100.568, 14.355], zoom: 11.2, pitch: 60, bearing: -20, maxPitch: 80,
+  style: {
+    version: 8,
+    sources: {
+      osm: {type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19, attribution: '© OpenStreetMap'},
+      dem: {type: 'raster-dem', tiles: [DEM_URL], encoding: 'terrarium', tileSize: 256, maxzoom: 14, attribution: 'ความสูง: SRTM / AWS Terrain Tiles'},
+      shade: {type: 'raster-dem', tiles: [DEM_URL], encoding: 'terrarium', tileSize: 256, maxzoom: 14},
+      flood: {type: 'raster', tiles: ['flood://{z}/{x}/{y}?h=-99&lat=0&lng=0&r=0'], tileSize: 256, minzoom: 8, maxzoom: 14},
+      st: {type: 'geojson', data: {type: 'FeatureCollection', features: []}},
+      bank: {type: 'geojson', data: {type: 'FeatureCollection', features: []}},
+      water: {type: 'geojson', data: {type: 'FeatureCollection', features: []}}
+    },
+    layers: [
+      {id: 'osm', type: 'raster', source: 'osm'},
+      {id: 'shade', type: 'hillshade', source: 'shade', paint: {'hillshade-exaggeration': .6, 'hillshade-shadow-color': '#3a2a1a'}},
+      {id: 'flood', type: 'raster', source: 'flood', paint: {'raster-opacity': .85, 'raster-fade-duration': 0}},
+      {id: 'water-ext', type: 'fill-extrusion', source: 'water', paint: {
+        'fill-extrusion-color': ['get', 'color'], 'fill-extrusion-opacity': .95,
+        'fill-extrusion-height': ['interpolate', ['exponential', 2], ['zoom'], 8, ['*', ['get', 'hh'], 1500], 15, ['*', ['get', 'hh'], 12]]}},
+      {id: 'bank-ext', type: 'fill-extrusion', source: 'bank', paint: {
+        'fill-extrusion-color': '#7f8f98', 'fill-extrusion-opacity': .45,
+        'fill-extrusion-height': ['interpolate', ['exponential', 2], ['zoom'], 8, ['*', ['get', 'hh'], 1500], 15, ['*', ['get', 'hh'], 12]]}},
+      {id: 'st-dot', type: 'circle', source: 'st', paint: {
+        'circle-radius': ['case', ['==', ['get', 'id'], ''], 5, 5], 'circle-color': ['get', 'color'],
+        'circle-stroke-color': '#fff', 'circle-stroke-width': ['case', ['boolean', ['get', 'sel'], false], 3, 1.5]}}
+    ],
+    terrain: {source: 'dem', exaggeration: 20}
+  }
+});
+map.addControl(new maplibregl.NavigationControl({visualizePitch: true}), 'top-right');
+map.addControl(new maplibregl.ScaleControl(), 'bottom-left');
+
+function ring(lat, lng, rKm, n = 20){
+  const kx = 111.32 * Math.cos(lat * Math.PI / 180), pts = [];
+  for (let i = 0; i <= n; i++) { const a = i / n * 2 * Math.PI; pts.push([lng + rKm * Math.cos(a) / kx, lat + rKm * Math.sin(a) / 111.32]); }
+  return {type: 'Polygon', coordinates: [pts]};
+}
+// ท้องน้ำของสถานี ถ้าไม่มีค่าที่ใช้ได้ ประมาณเป็นต่ำกว่าตลิ่ง 5 ม.
+const bedOf = s => validGround(s) ? s.ground : Math.min(s.bank, s.msl) - 5;
+
+function renderMapData(){
+  const usable = stations.filter(s => s.msl != null && s.bank != null);
+  const F = (s, geometry, props) => ({type: 'Feature', geometry, properties: {id: s.id, ...props}});
+  map.getSource('st').setData({type: 'FeatureCollection', features: usable.map(s =>
+    F(s, {type: 'Point', coordinates: [s.lng, s.lat]}, {color: css('--' + level(s.pct).k), sel: current?.id === s.id}))});
+  map.getSource('bank').setData({type: 'FeatureCollection', features: usable.map(s =>
+    F(s, ring(s.lat, s.lng, .5), {hh: Math.max(s.bank - bedOf(s), .1)}))});
+  map.getSource('water').setData({type: 'FeatureCollection', features: usable.map(s =>
+    F(s, ring(s.lat, s.lng, .33), {hh: Math.max(s.msl - bedOf(s), .05), color: css('--' + level(s.pct).k)}))});
+}
+
+function fillSelect(){
+  const sel = $('station'), keep = sel.value || current?.id;
+  const list = stations.filter(s => NEAR.includes(s.provCode) && s.msl != null && s.bank != null);
+  const byProv = {};
+  for (const s of list) (byProv[s.prov] ||= []).push(s);
+  const provs = Object.keys(byProv).sort((a, b) => (b === 'พระนครศรีอยุธยา') - (a === 'พระนครศรีอยุธยา') || a.localeCompare(b, 'th'));
+  sel.innerHTML = provs.map(p => `<optgroup label="${esc(p)}">${byProv[p].sort((a, b) => a.name.localeCompare(b.name, 'th'))
+    .map(s => `<option value="${esc(s.id)}">${esc(s.name)} (${s.pct != null ? s.pct.toFixed(0) + '%' : '-'})</option>`).join('')}</optgroup>`).join('');
+  if (keep) sel.value = keep;
+}
+
+// ---------- ระดับน้ำท่วม ----------
+function setFlood(h){
+  $('flood').value = h;
+  $('floodOut').textContent = (+h).toFixed(2) + ' ม.';
+  if (!floodCenter) return;
+  map.getSource('flood').setTiles([`flood://{z}/{x}/{y}?h=${(+h).toFixed(2)}&lat=${floodCenter.lat.toFixed(5)}&lng=${floodCenter.lng.toFixed(5)}&r=${$('radius').value}&b=${floodBias.toFixed(2)}`]);
+}
+
+async function selectStation(s, fly){
+  current = s;
+  floodCenter = {lat: s.lat, lng: s.lng};
+  $('station').value = s.id;
+  try { history.replaceState(null, '', '#' + s.id); } catch (e) {}
+  const f = $('flood');
+  f.min = Math.floor(s.msl - 4); f.max = Math.ceil(s.msl + 3);
+  setFlood(s.msl);
+  renderMapData();
+  if (fly) map.flyTo({center: [s.lng, s.lat], zoom: 12.3, pitch: 62, essential: true});
+  $('section').innerHTML = sectionHtml(s, undefined);
+  const [raw, bias] = await Promise.all([landOf(s), biasAt(s.lat, s.lng)]);
+  if (current !== s) return;
+  floodBias = bias;
+  setFlood($('flood').value);
+  $('section').innerHTML = sectionHtml(s, raw == null ? null : raw - bias);
+}
+
+// ---------- ภาพตัดขวาง ----------
+function sectionHtml(s, land){
+  const lb = s.leftBank ?? s.bank, rb = s.rightBank ?? s.bank, w = s.msl, bed = validGround(s) ? s.ground : null;
+  const bedDraw = bed ?? Math.min(lb, rb, w) - 4;
+  const vals = [lb, rb, w, s.bank, bedDraw, ...(land != null ? [land] : [])];
+  const lo = Math.min(...vals) - .6, hi = Math.max(...vals) + .8;
+  const W = 340, H = 210, top = 14, bot = 22;
+  const Y = v => top + (hi - v) / (hi - lo) * (H - top - bot);
+  const earth = `M0,${Y(lb)} L95,${Y(lb)} L140,${Y(bedDraw)} L200,${Y(bedDraw)} L245,${Y(rb)} L${W},${Y(rb)} L${W},${H} L0,${H} Z`;
+  const ticks = [];
+  for (let v = Math.ceil(lo); v <= hi; v += Math.max(1, Math.round((hi - lo) / 5))) ticks.push(v);
+  const over = w - s.bank, lv = level(s.pct), lowPt = s.bank < Math.min(lb, rb) - .05;
+  const head = over > 0 ? `น้ำสูงกว่าตลิ่ง ${over.toFixed(2)} ม. (ล้นตลิ่ง)` : `อีก ${(-over).toFixed(2)} ม. น้ำจะถึงตลิ่ง`;
+  let landTxt = '';
+  if (land === undefined) landTxt = '<span class="hint">กำลังคำนวณความสูงพื้นที่รอบๆ…</span>';
+  else if (land != null) {
+    const d = w - land;
+    landTxt = over > 0 && d <= 0
+      ? `<b>น้ำล้นจุดตลิ่งต่ำสุดแล้ว</b> พื้นที่ลุ่มต่ำใกล้จุดนั้นน่าจะมีน้ำท่วม แม้พื้นดินโดยเฉลี่ยรอบๆ (ดาวเทียม) จะสูงกว่าน้ำราว ${(-d).toFixed(1)} ม.`
+      : d > 0
+      ? `ระดับน้ำในแม่น้ำ<b>สูงกว่า</b>พื้นดินรอบๆ ประมาณ <span class="num">${d.toFixed(1)}</span> ม. ถ้าน้ำข้ามตลิ่ง/คันกั้นได้ พื้นที่รอบๆ จะท่วมราว ${d.toFixed(1)} ม.`
+      : (d > -1.5 ? `ระดับน้ำใกล้เคียงพื้นดินรอบๆ (ต่ำกว่าราว <span class="num">${(-d).toFixed(1)}</span> ม. ซึ่งอยู่ในช่วงคลาดเคลื่อน) ถือว่าเสี่ยง` : `ระดับน้ำยังต่ำกว่าพื้นดินรอบๆ ประมาณ <span class="num">${(-d).toFixed(1)}</span> ม.`);
+  }
+  return `
+  <div class="status" style="--st:var(--${lv.k});--st-bg:${lv.bg ? 'var(--' + lv.bg + ')' : 'var(--bg)'}">
+    <strong>${esc(s.name)} <span class="pill num" style="background:var(--${lv.k})">${s.pct != null ? s.pct.toFixed(0) + '%' : '-'}</span></strong>
+    <span>${head}</span>
+    <span class="meta">อ.${esc(s.amphoe)} จ.${esc(s.prov)} · ${trendHtml(s)} · ${esc(s.time)}</span>
+  </div>
+  <svg class="section" viewBox="0 0 ${W} ${H}" role="img" aria-label="ภาพตัดขวางแม่น้ำที่สถานี ${esc(s.name)}">
+    ${ticks.map(v => `<line class="grid" x1="0" x2="${W}" y1="${Y(v)}" y2="${Y(v)}"/><text class="tick" x="${W - 2}" y="${Y(v) - 3}" text-anchor="end">${v} ม.</text>`).join('')}
+    <rect class="water" x="0" y="${Y(w)}" width="${W}" height="${H - Y(w)}"/>
+    <path class="earth" d="${earth}"/>
+    <line class="wline" x1="0" x2="${W}" y1="${Y(w)}" y2="${Y(w)}"/>
+    ${lowPt ? `<line x1="0" x2="${W}" y1="${Y(s.bank)}" y2="${Y(s.bank)}" style="stroke:var(--lv5);stroke-width:1.5;stroke-dasharray:3 3"/>
+      <text x="${W - 40}" y="${Y(s.bank) + 13}" text-anchor="end" style="fill:var(--lv5)">จุดตลิ่งต่ำสุด ${s.bank.toFixed(2)}</text>` : ''}
+    ${land != null && land !== undefined ? `<line class="land" x1="0" x2="${W}" y1="${Y(land)}" y2="${Y(land)}"/>
+      <text x="4" y="${Y(land) + 13}" style="fill:var(--land)">พื้นดินรอบๆ ~${land.toFixed(1)} (±1.5)</text>` : ''}
+    <text x="170" y="${Y(w) - 5}" text-anchor="middle" style="fill:var(--water)">น้ำ ${w.toFixed(2)}</text>
+    <text x="4" y="${Y(lb) - 5}">ตลิ่งซ้าย ${lb.toFixed(2)}</text>
+    <text x="${W - 40}" y="${Y(rb) - 5}" text-anchor="end">ตลิ่งขวา ${rb.toFixed(2)}</text>
+    <text x="170" y="${Y(bedDraw) + 14}" text-anchor="middle">${bed != null ? 'ท้องน้ำ ' + bed.toFixed(2) : 'ท้องน้ำ (ไม่มีข้อมูล)'}</text>
+  </svg>
+  <p class="hint">หน่วยเมตรเหนือระดับทะเลปานกลาง (ม.รทก.) · ${lowPt ? 'เส้นประแดงคือจุดตลิ่งต่ำสุดของช่วงนี้ ใช้คิด % ตลิ่ง · ' : ''}${landTxt}</p>`;
+}
+
+// ---------- บ้านของฉัน ----------
+async function handlePoint(lat, lng, switchStation = true){
+  if (meMarker) meMarker.setLngLat([lng, lat]);
+  else meMarker = new maplibregl.Marker({color: '#0b6e8a'}).setLngLat([lng, lat]).addTo(map);
+  try { localStorage.setItem('wl-me', JSON.stringify({lat, lng})); } catch (e) {}
+  $('me').innerHTML = '<p class="hint">กำลังหาความสูงพื้นดิน…</p>';
+  const near = stations.filter(s => s.msl != null && s.bank != null)
+    .map(s => ({s, d: dist(lat, lng, s.lat, s.lng)})).sort((a, b) => a.d - b.d)[0];
+  let e = null;
+  try { e = await groundAt(lat, lng) - await biasAt(lat, lng); } catch (err) {}
+  if (e == null) { $('me').innerHTML = '<p class="err">โหลดข้อมูลความสูงไม่ได้ ตรวจอินเทอร์เน็ตแล้วแตะใหม่</p>'; return; }
+  if (!near) { $('me').innerHTML = `<p>พื้นดินตรงนี้สูงประมาณ <b class="num">${e.toFixed(1)}</b> ม.รทก.</p>`; return; }
+  const {s, d} = near;
+  // ประเมินแบบระวังไว้ก่อน: ใกล้สถานี (≤5 กม.) ถือว่าพื้นดินไม่สูงเกินตลิ่ง + 1 ม.
+  const cap = d <= 5 ? Math.max(s.leftBank ?? s.bank, s.rightBank ?? s.bank) + 1 : Infinity;
+  const eRisk = Math.min(e, cap), capped = eRisk < e, diff = s.msl - eRisk;
+  let k = diff > 1 ? 'lv5' : diff > 0 ? 'lv4' : diff > -1.5 ? 'lv3' : 'lv2';
+  if (s.pct > 100 && k === 'lv2') k = 'lv3';
+  const msg = diff > 0
+    ? `พื้นตรงนี้<b>ต่ำกว่า</b>ระดับน้ำในแม่น้ำ <b class="num">${diff.toFixed(1)}</b> ม. ถ้าน้ำข้ามตลิ่งหรือคันกั้นน้ำ อาจท่วมลึกราว ${diff.toFixed(1)} ม.`
+    : diff > -1.5 ? `พื้นตรงนี้สูงกว่าระดับน้ำในแม่น้ำเพียง <b class="num">${(-diff).toFixed(1)}</b> ม. ซึ่งอยู่ในช่วงคลาดเคลื่อนของข้อมูล ให้ถือว่าเสี่ยงและเตรียมพร้อม`
+    : `พื้นตรงนี้<b>สูงกว่า</b>ระดับน้ำในแม่น้ำ <b class="num">${(-diff).toFixed(1)}</b> ม. (ค่าคลาดเคลื่อน ±1.5 ม.)`;
+  $('me').innerHTML = `
+    <div class="status" style="--st:var(--${k});--st-bg:var(--${k === 'lv2' ? 'ok-bg' : k + '-bg'})">
+      <strong>พื้นดินสูงประมาณ <span class="num">${e.toFixed(1)}</span> ม.รทก. (±1.5)</strong><span>${msg}</span></div>
+    <p class="hint">เทียบกับสถานี ${esc(s.name)} (ห่าง ${d.toFixed(1)} กม.) น้ำ ${s.msl.toFixed(2)} · ตลิ่ง ${s.bank.toFixed(2)} ม.
+      ${capped ? `ประเมินความเสี่ยงโดยใช้ความสูงไม่เกิน ${eRisk.toFixed(1)} ม. (ตลิ่ง + 1 ม.) เพื่อความปลอดภัย ` : ''}
+      ${s.pct > 100 ? '<span class="err">สถานีนี้น้ำล้นตลิ่งแล้ว ติดตามประกาศอย่างใกล้ชิด</span> ' : ''}
+      ${d > 10 ? '<span class="err">สถานีอยู่ไกล ค่านี้อาจไม่ตรงกับน้ำแถวบ้านคุณ</span>' : ''}</p>`;
+  meResult = {lat, lng};
+  if (switchStation && current?.id !== s.id) selectStation(s, false);
+}
+
+// ---------- โหลดข้อมูล ----------
+async function load(){
+  $('refresh').disabled = true;
+  $('updated').textContent = 'กำลังโหลด…';
+  const res = await fetchStations();
+  $('updated').innerHTML = updatedText(res);
+  $('refresh').disabled = false;
+  if (!res) return;
+  stations = res.stations;
+  fillSelect();
+  const want = current?.id || location.hash.slice(1);
+  let s = stations.find(x => x.id === want && x.msl != null && x.bank != null);
+  const fromHash = !current && !!s;
+  if (!s) {
+    const usable = stations.filter(x => x.msl != null && x.bank != null && x.provCode === AYT);
+    s = usable.sort((a, b) => dist(14.355, 100.568, a.lat, a.lng) - dist(14.355, 100.568, b.lat, b.lng))[0];
+  }
+  if (s) await selectStation(s, fromHash);
+  if (!meResult) {
+    try { const m = JSON.parse(localStorage.getItem('wl-me')); if (m) handlePoint(m.lat, m.lng, !fromHash); } catch (e) {}
+  }
+}
+
+map.on('load', () => { load(); setInterval(load, REFRESH_MS); });
+for (const id of ['st-dot', 'water-ext', 'bank-ext']) {
+  map.on('click', id, ev => {
+    ev.preventDefault();
+    const s = stations.find(x => x.id === String(ev.features[0].properties.id));
+    if (s) selectStation(s, false);
+  });
+  map.on('mouseenter', id, () => map.getCanvas().style.cursor = 'pointer');
+  map.on('mouseleave', id, () => map.getCanvas().style.cursor = '');
+}
+map.on('click', ev => { if (!ev.defaultPrevented) handlePoint(ev.lngLat.lat, ev.lngLat.lng); });
+
+$('station').addEventListener('change', e => { const s = stations.find(x => x.id === e.target.value); if (s) selectStation(s, true); });
+$('flood').addEventListener('input', e => { $('floodOut').textContent = (+e.target.value).toFixed(2) + ' ม.'; });
+$('flood').addEventListener('change', e => setFlood(e.target.value));
+$('radius').addEventListener('change', () => setFlood($('flood').value));
+$('resetFlood').addEventListener('click', () => current && setFlood(current.msl));
+$('exag').addEventListener('input', e => {
+  $('exagOut').textContent = e.target.value + '×';
+  map.setTerrain({source: 'dem', exaggeration: +e.target.value});
+});
+$('refresh').addEventListener('click', load);
+$('locate').addEventListener('click', () => {
+  if (!navigator.geolocation) { $('me').innerHTML = '<p class="err">เบราว์เซอร์นี้หาตำแหน่งไม่ได้ แตะบนแผนที่แทน</p>'; return; }
+  $('locate').textContent = 'กำลังหาตำแหน่ง…';
+  navigator.geolocation.getCurrentPosition(p => {
+    $('locate').textContent = 'ใช้ตำแหน่งของฉัน';
+    map.flyTo({center: [p.coords.longitude, p.coords.latitude], zoom: 13.5, pitch: 60});
+    handlePoint(p.coords.latitude, p.coords.longitude);
+  }, () => {
+    $('locate').textContent = 'ใช้ตำแหน่งของฉัน';
+    $('me').innerHTML = '<p class="err">หาตำแหน่งไม่ได้ (อาจไม่ได้อนุญาต) แตะบนแผนที่ตรงบ้านของคุณแทน</p>';
+  }, {enableHighAccuracy: true, timeout: 15000});
+});
+</script>
+</body>
+</html>

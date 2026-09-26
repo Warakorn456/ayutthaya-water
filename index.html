@@ -37,6 +37,7 @@ h2{font-size:1.05rem}
 a{color:var(--accent)}
 header{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
 .meta{color:var(--muted);font-size:.85rem}
+a.btn{display:inline-block;text-decoration:none;font-weight:500;border:1px solid var(--accent);border-radius:8px;padding:6px 12px}
 button,select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 12px;cursor:pointer}
 button:hover{border-color:var(--accent)}
 button:focus-visible,select:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -87,6 +88,7 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
         <option value="central">ภาคกลางทั้งหมด</option>
         <option value="all">ทั้งประเทศ</option>
       </select>
+      <a class="btn" href="3d.html">ดูแบบ 3D</a>
       <button id="refresh" class="primary" type="button">รีเฟรช</button>
     </div>
   </header>
@@ -156,72 +158,18 @@ ul.tips{margin:0;padding-left:1.2em;display:grid;gap:4px}
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="data.js"></script>
 <script>
-const API = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load';
-const REFRESH_MS = 10 * 60 * 1000;
-const AYT = '14';
-// อยุธยา + จังหวัดต้นน้ำเจ้าพระยา/ป่าสัก/ลพบุรี และท้ายน้ำใกล้เคียง
-const NEAR = ['14','15','16','17','18','19','12','13','72','60'];
-const CENTRAL = ['10','11','12','13','14','15','16','17','18','19','24','25','26','60','61','70','72','73','74','75'];
-
 let stations = [], me = null, meMarker = null, markers = L.layerGroup();
-
-const $ = id => document.getElementById(id);
-const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-
-function level(p){
-  if (p == null || isNaN(p)) return {k:'lv0', t:'ไม่มีข้อมูล', bg:null};
-  if (p > 100) return {k:'lv5', t:'ล้นตลิ่ง', bg:'lv5-bg'};
-  if (p >= 90) return {k:'lv4', t:'วิกฤต', bg:'lv4-bg'};
-  if (p >= 70) return {k:'lv3', t:'เฝ้าระวัง', bg:'lv3-bg'};
-  if (p >= 30) return {k:'lv2', t:'ปกติ', bg:'ok-bg'};
-  return {k:'lv1', t:'น้ำน้อย', bg:'ok-bg'};
-}
-const num = v => (v === null || v === undefined || v === '' || isNaN(+v)) ? null : +v;
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-
-function parse(json){
-  return (json?.waterlevel_data?.data || []).map(d => {
-    const s = d.station || {}, g = d.geocode || {};
-    const msl = num(d.waterlevel_msl), prev = num(d.waterlevel_msl_previous), bank = num(s.min_bank);
-    return {
-      name: s.tele_station_name?.th || s.tele_station_name?.en || '-',
-      lat: num(s.tele_station_lat), lng: num(s.tele_station_long),
-      prov: g.province_name?.th || '', provCode: String(g.province_code || ''),
-      amphoe: g.amphoe_name?.th || '',
-      msl, prev, bank, ground: num(s.ground_level),
-      pct: num(d.storage_percent), sit: d.situation_level,
-      toBank: (msl != null && bank != null) ? bank - msl : null,
-      trend: (msl != null && prev != null) ? (msl - prev) * 100 : null,
-      time: d.waterlevel_datetime || ''
-    };
-  }).filter(s => s.lat && s.lng);
-}
 
 async function load(){
   $('refresh').disabled = true;
   $('updated').textContent = 'กำลังโหลด…';
-  let json = null, fromCache = false;
-  for (const url of [API, '/api/waterlevel']) {
-    try {
-      const r = await fetch(url, {cache:'no-store'});
-      if (r.ok) { json = await r.json(); break; }
-    } catch (e) { /* ลองแหล่งถัดไป */ }
-  }
-  if (json) {
-    try { localStorage.setItem('wl-cache', JSON.stringify({at: Date.now(), json})); } catch (e) {}
-    $('updated').textContent = 'โหลดเมื่อ ' + new Date().toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}) + ' น.';
-  } else {
-    try {
-      const c = JSON.parse(localStorage.getItem('wl-cache'));
-      if (c) { json = c.json; fromCache = true;
-        $('updated').innerHTML = '<span class="err">ต่อเน็ตไม่ได้ แสดงข้อมูลเก่าจาก ' + new Date(c.at).toLocaleString('th-TH') + '</span>'; }
-    } catch (e) {}
-    if (!json) { $('updated').innerHTML = '<span class="err">โหลดข้อมูลไม่ได้ ตรวจอินเทอร์เน็ต แล้วกดรีเฟรช (หรือรัน python proxy.py)</span>'; }
-  }
+  const res = await fetchStations();
+  $('updated').innerHTML = updatedText(res);
   $('refresh').disabled = false;
-  if (!json) return;
-  stations = parse(json);
+  if (!res) return;
+  stations = res.stations;
   render();
 }
 
@@ -263,13 +211,9 @@ function popup(s){
   return `<b>${esc(s.name)}</b><br>อ.${esc(s.amphoe)} จ.${esc(s.prov)}<br>
     <span class="pill" style="background:var(--${lv.k})">${lv.t}</span>
     <span class="num">${s.pct != null ? s.pct.toFixed(1) + '%' : '-'}</span><br>
-    ระดับน้ำ <span class="num">${s.msl ?? '-'}</span> ม.รทก. · ตลิ่ง <span class="num">${s.bank ?? '-'}</span><br>
-    ${trendHtml(s)} · ${esc(s.time)}`;
-}
-function trendHtml(s){
-  if (s.trend == null) return '-';
-  if (Math.abs(s.trend) < 0.5) return '<span class="num">คงที่</span>';
-  return s.trend > 0 ? `<span class="num up">▲ ${s.trend.toFixed(0)} ซม.</span>` : `<span class="num down">▼ ${(-s.trend).toFixed(0)} ซม.</span>`;
+    น้ำ <span class="num">${fmtM(s.msl)}</span> · ตลิ่ง <span class="num">${fmtM(s.bank)}</span>${validGround(s) ? ` · ท้องน้ำ <span class="num">${fmtM(s.ground)}</span>` : ''} ม.รทก.<br>
+    ${trendHtml(s)} · ${esc(s.time)}<br>
+    <a href="3d.html#${esc(s.id)}">ดูแบบ 3D / ภาพตัดขวาง</a>`;
 }
 
 function renderTable(list){
@@ -285,20 +229,6 @@ function renderTable(list){
   }).join('');
 }
 
-// ระยะทาง (กม.) และทิศ
-function dist(a, b, c, d){
-  const R = 6371, r = x => x * Math.PI / 180;
-  const h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(h));
-}
-function bearing(a, b, c, d){
-  const r = x => x * Math.PI / 180;
-  const y = Math.sin(r(d - b)) * Math.cos(r(c));
-  const x = Math.cos(r(a)) * Math.sin(r(c)) - Math.sin(r(a)) * Math.cos(r(c)) * Math.cos(r(d - b));
-  const deg = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
-  return ['เหนือ','ตะวันออกเฉียงเหนือ','ตะวันออก','ตะวันออกเฉียงใต้','ใต้','ตะวันตกเฉียงใต้','ตะวันตก','ตะวันตกเฉียงเหนือ'][Math.round(deg / 45) % 8];
-}
-
 function renderMe(){
   if (!me || !stations.length) return;
   const withD = stations.filter(s => s.pct != null).map(s => ({...s, d: dist(me.lat, me.lng, s.lat, s.lng)}));
@@ -310,7 +240,7 @@ function renderMe(){
   const structure = /ปตร|ทรบ|ประตู|สูบน้ำ|ทุ่ง|เขื่อน/;
   const seen = new Set();
   const safe = withD.filter(s => s.d <= R && s.pct < 70 && (s.trend == null || s.trend <= 0.5) && !structure.test(s.name))
-    .sort((a, b) => (b.ground || -99) - (a.ground || -99) || a.pct - b.pct)
+    .sort((a, b) => a.pct - b.pct || a.d - b.d)
     .filter(s => { const k = s.prov + s.amphoe; if (seen.has(k)) return false; seen.add(k); return true; })
     .slice(0, 5);
   const advice = {
@@ -325,9 +255,9 @@ function renderMe(){
     <p class="hint">สถานีใกล้คุณที่สุด</p>
     <ul class="list">${near.map(s => `<li><span><b>${esc(s.name)}</b> <span class="pill num" style="background:var(--${level(s.pct).k})">${s.pct.toFixed(0)}%</span></span>
       <span class="meta num">ห่าง ${s.d.toFixed(1)} กม. · ${trendHtml(s)} · อ.${esc(s.amphoe)} จ.${esc(s.prov)}</span></li>`).join('')}</ul>
-    <p class="hint">พื้นที่ที่แม่น้ำยังไม่เต็มตลิ่ง ในรัศมี ${R} กม. (เรียงตามพื้นที่สูงก่อน)</p>
+    <p class="hint">พื้นที่ที่แม่น้ำยังไม่เต็มตลิ่ง ในรัศมี ${R} กม. (เรียงจากแม่น้ำต่ำสุด) ดูความสูงพื้นดินจริงได้ในหน้า 3D</p>
     ${safe.length ? `<ul class="list">${safe.map(s => `<li><span><b>อ.${esc(s.amphoe)} จ.${esc(s.prov)}</b> <span class="pill num" style="background:var(--${level(s.pct).k})">${s.pct.toFixed(0)}%</span></span>
-      <span class="meta num">ไปทาง${bearing(me.lat, me.lng, s.lat, s.lng)} ${s.d.toFixed(0)} กม. · สถานี ${esc(s.name)}${s.ground ? ' · พื้นดินสูง ' + s.ground.toFixed(1) + ' ม.รทก.' : ''}</span>
+      <span class="meta num">ไปทาง${bearing(me.lat, me.lng, s.lat, s.lng)} ${s.d.toFixed(0)} กม. · สถานี ${esc(s.name)}</span>
       <a href="https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lng}" target="_blank" rel="noopener">นำทางด้วย Google Maps</a></li>`).join('')}</ul>`
       : `<p class="err">ไม่พบพื้นที่ที่แม่น้ำต่ำกว่า 70% ในรัศมี ${R} กม. ลองขยายรัศมี</p>`}
     <p class="hint">รายการนี้ดูจากระดับน้ำในแม่น้ำ/คลองเท่านั้น ไม่ใช่ศูนย์อพยพ ถนนบางสายอาจถูกน้ำตัด ให้ยืนยันกับ 1784 หรืออำเภอก่อนเดินทาง</p>`;
