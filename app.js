@@ -137,6 +137,16 @@ async function checkAlerts(list){
       if (hitRate !== !!cfg.firedRate) { cfg.firedRate = hitRate; changed = true; }
     } catch (e) {}
   }
+  // เตือนล่วงหน้าจากพยากรณ์: เร็วสุดอาจถึงตลิ่งภายใน 12 ชม.
+  if (typeof forecastModel === 'function' && s.pct < 100) {
+    try {
+      const fc = await forecastModel(s);
+      const soon = fc?.earliest != null && fc.earliest - Date.now() <= 12 * 36e5;
+      if (soon && !cfg.firedFc) await notify('พยากรณ์: น้ำอาจถึงตลิ่งเร็วๆ นี้',
+        `${s.name}: เร็วสุดอาจถึงตลิ่ง ${fcWhen(fc.earliest)} ควรเตรียมพร้อมอพยพ`, 'wl-fc');
+      if (soon !== !!cfg.firedFc) { cfg.firedFc = soon; changed = true; }
+    } catch (e) {}
+  }
   if (changed) await saveAlertCfg(cfg);
 }
 

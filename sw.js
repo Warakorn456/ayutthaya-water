@@ -2,7 +2,7 @@
 const SHELL = 'wl-shell-v1';
 const DATA = 'wl-data-v1';
 const CONFIG = 'wl-config';
-const SHELL_FILES = ['./', 'index.html', '3d.html', 'data.js', 'ui.js', 'app.js', 'manifest.webmanifest',
+const SHELL_FILES = ['./', 'index.html', '3d.html', 'data.js', 'ui.js', 'app.js', 'forecast.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 const API = 'https://api-v3.thaiwater.net/api/v1/thaiwater30/public/waterlevel_load';
 
@@ -25,7 +25,8 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   // ข้อมูลน้ำ/ฝน: ลองเน็ตก่อน ไม่ได้ค่อยใช้ของเก่า
-  if (url.hostname === 'api-v3.thaiwater.net') {
+  // เฉพาะข้อมูล JSON (/public/) ส่วนรูปภาพ (/shared/image) ให้เบราว์เซอร์โหลดเองตามปกติ
+  if (url.hostname === 'api-v3.thaiwater.net' && url.pathname.includes('/public/')) {
     // เน็ตช้าเกินเวลา ให้ใช้ข้อมูลล่าสุดที่เก็บไว้แทน (ไฟล์ใหญ่ให้เวลามากกว่า)
     const ms = url.pathname.includes('thailand_main') ? 50000 : url.pathname.includes('rain_24h') ? 30000 : 12000;
     e.respondWith(withTimeout(fetch(req), ms).then(res => {

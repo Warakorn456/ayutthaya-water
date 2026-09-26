@@ -102,6 +102,11 @@ header.top .meta{font-size:.85rem}
 .hero .badge{font-size:1.6rem;padding:4px 18px}
 .hero .big{font-size:1.15rem;font-weight:500}
 .fcline{font-weight:500}
+.ready{background:var(--surface);border-radius:12px;padding:12px 14px;display:grid;gap:4px;border:2px dashed var(--st,var(--line))}
+.ready .when{font-size:1.3rem;font-weight:700;color:var(--lv5);line-height:1.3}
+.rainfc{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.rainfc a{display:grid;gap:4px;text-decoration:none;color:var(--ink);font-size:.85rem;text-align:center}
+.rainfc img{width:100%;border-radius:8px;border:1px solid var(--line);aspect-ratio:3/4;object-fit:cover;background:var(--bg)}
 ul.todo{list-style:none;margin:0;padding:0;display:grid;gap:6px}
 ul.todo label{display:grid;grid-template-columns:24px 1fr;gap:8px;align-items:start;cursor:pointer;min-height:32px}
 ul.todo input{width:22px;height:22px;margin:3px 0 0;accent-color:var(--st,var(--accent))}
@@ -279,6 +284,7 @@ tr.row-click:hover td{background:color-mix(in srgb,var(--accent) 7%,transparent)
     </section>
     <div class="split">
       <section class="panel"><h2>ฝนหนักสุดใน 24 ชม.</h2><p class="hint">อยุธยาและจังหวัดใกล้เคียง</p><ol class="rain" id="rainTop"><li class="hint">กำลังโหลด…</li></ol></section>
+      <section class="panel"><h2>ฝนคาดการณ์ 3 วัน</h2><p class="hint">แบบจำลองสภาพอากาศของ สสน. (HII) · แตะเพื่อดูภาพใหญ่</p><div id="rainFc" class="rainfc"><p class="hint">กำลังโหลด…</p></div></section>
       <section class="panel"><h2>เขื่อนใหญ่เหนืออยุธยา</h2><div id="dams" class="dams"><p class="hint">กำลังโหลดข้อมูลเขื่อน (ไฟล์ใหญ่ อาจใช้เวลาสักครู่)…</p></div></section>
     </div>
   </section>
@@ -337,11 +343,13 @@ tr.row-click:hover td{background:color-mix(in srgb,var(--accent) 7%,transparent)
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="data.js"></script>
+<script src="forecast.js"></script>
 <script src="ui.js"></script>
 <script src="app.js"></script>
 <script>
 let stations = [], me = null, meMarker = null, markers = L.layerGroup(), detailId = null;
 let rain = null, rainLayer = L.layerGroup(), picking = false;
+let homeFc = null, homeFcPending = null;   // พยากรณ์ของสถานีใกล้บ้าน
 
 // คำตัดสินแบบภาษาง่ายๆ + สิ่งที่ควรทำ
 const VERDICT = {
@@ -394,6 +402,7 @@ async function load(){
   $('refresh').disabled = false;
   if (!res) return;
   stations = res.stations;
+  homeFc = null;
   render();
   const d = detailId && stations.find(s => s.id === detailId);
   if (d) openDetail(d, false);
@@ -409,20 +418,8 @@ const nearestTo = (p, n = 1) => {
 };
 
 // ---------- สรุป: บ้านของคุณ ----------
-function fcSentence(f){
-  if (!f) return '';
-  const rate = f.cm != null ? Math.abs(f.cm).toFixed(1) : '';
-  if (f.over > 0) return f.trend === 'up' ? `น้ำล้นตลิ่งแล้ว ${f.over.toFixed(2)} ม. และยังสูงขึ้น (ชั่วโมงละ ${rate} ซม.)`
-    : f.trend === 'down' ? `น้ำล้นตลิ่ง ${f.over.toFixed(2)} ม. แต่เริ่มลดลงแล้ว` : `น้ำล้นตลิ่ง ${f.over.toFixed(2)} ม. และทรงตัว`;
-  if (f.trend === 'up' && f.hoursToBank != null) {
-    const h = f.hoursToBank;
-    return h > 72 ? `น้ำกำลังขึ้นช้าๆ (ชั่วโมงละ ${rate} ซม.) ยังเหลืออีก ${f.gap.toFixed(2)} ม. ถึงตลิ่ง`
-      : `ถ้าน้ำขึ้นต่อแบบนี้ จะล้นตลิ่งในอีกราว ${h < 10 ? h.toFixed(1) : Math.round(h)} ชั่วโมง`;
-  }
-  if (f.trend === 'down') return `น้ำกำลังลดลง ยังเหลืออีก ${f.gap?.toFixed(2) ?? '-'} ม. ถึงตลิ่ง`;
-  if (f.trend === 'steady') return `ระดับน้ำทรงตัว ยังเหลืออีก ${f.gap?.toFixed(2) ?? '-'} ม. ถึงตลิ่ง`;
-  return '';
-}
+const LV_RANK = ['lv0', 'lv1', 'lv2', 'lv3', 'lv4', 'lv5'];
+const LV_BG = {lv5: 'lv5-bg', lv4: 'lv4-bg', lv3: 'lv3-bg', lv2: 'ok-bg', lv1: 'ok-bg'};
 function renderHome(){
   const el = $('homeCard');
   if (!stations.length) return;
@@ -436,22 +433,36 @@ function renderHome(){
   }
   const near = nearestTo(me, 3);
   const w = near.reduce((m, x) => x.s.pct > m.s.pct ? x : m, near[0]);
-  const lv = level(w.s.pct), V = VERDICT[lv.k];
+  // ระดับความเสี่ยง = ค่าที่แย่กว่าระหว่าง "ตอนนี้" กับ "พยากรณ์ 3 วัน"
+  const S = homeFc && homeFc.sid === w.s.id ? homeFc.S : null;
+  const kNow = level(w.s.pct).k;
+  const byFc = S && LV_RANK.indexOf(S.k) > LV_RANK.indexOf(kNow);
+  const lv = {k: byFc ? S.k : kNow}, V = VERDICT[lv.k];
   el.style.setProperty('--st', `var(--${lv.k})`);
-  el.style.setProperty('--st-bg', lv.bg ? `var(--${lv.bg})` : 'var(--surface)');
+  el.style.setProperty('--st-bg', LV_BG[lv.k] ? `var(--${LV_BG[lv.k]})` : 'var(--surface)');
   const move = w.s.trend == null ? '' : w.s.trend > .5 ? ' และกำลังขึ้น' : w.s.trend < -.5 ? ' และกำลังลด' : ' ทรงตัว';
   el.innerHTML = `<div class="row"><span class="eyebrow">บ้านของคุณ</span><button type="button" class="link" data-act="pick">เปลี่ยนตำแหน่งบ้าน</button></div>
     <div><span class="badge ${lv.k}">${V.word}</span></div>
-    <p class="big">${V.line}</p>
+    <p class="big">${byFc ? 'ตอนนี้ยังไม่ล้นตลิ่ง แต่พยากรณ์บอกว่าอาจล้นเร็วๆ นี้' : V.line}</p>
     <p>แม่น้ำใกล้บ้าน: <b>${esc(w.s.name)}</b> (ห่าง ${w.d.toFixed(1)} กม.) น้ำเต็มตลิ่ง <b class="num">${w.s.pct.toFixed(0)}%</b>${move}</p>
-    <p class="fcline" id="homeFc"></p>
+    ${S ? `<div class="ready"><span class="eyebrow">พยากรณ์ 3 วันข้างหน้า</span><b>${S.head}</b>${S.sub ? `<span>${S.sub}</span>` : ''}
+      ${S.readyBy ? `<span class="when">${S.readyBy - Date.now() < 36e5 ? 'ควรพร้อมอพยพตั้งแต่ตอนนี้' : 'ควรพร้อมอพยพก่อน ' + fcWhen(S.readyBy)}</span>
+        <span class="hint">คิดจากเวลาที่เร็วที่สุดที่น้ำอาจถึงตลิ่ง ลบออก 6 ชั่วโมงเพื่อให้มีเวลาเดินทาง</span>` : ''}</div>`
+      : '<p class="hint" id="homeFc">กำลังคำนวณพยากรณ์ 3 วัน…</p>'}
     ${w.d > 15 ? '<p class="err">สถานีวัดน้ำอยู่ไกลจากบ้าน ค่านี้อาจไม่ตรงกับน้ำแถวบ้านคุณ</p>' : ''}
     ${V.todo.length ? `<h3>ควรทำตอนนี้ <span class="meta">(ติ๊กเมื่อทำแล้ว)</span></h3><ul class="todo">${V.todo.map(t =>
       `<li><label><input type="checkbox" data-todo="${esc(t)}"${todoDone().includes(t) ? ' checked' : ''}><span>${t}</span></label></li>`).join('')}</ul>` : ''}
     <div class="controls"><button type="button" class="primary" data-graph="${esc(w.s.id)}">ดูกราฟระดับน้ำ</button>
       <button type="button" data-act="tab:map">ดูบนแผนที่</button></div>`;
-  const fcEl = $('homeFc');
-  fetchHistory(w.s.id).then(h => { if ($('homeFc') === fcEl) fcEl.textContent = fcSentence(forecast(h.points, w.s.bank ?? h.minBank)); }).catch(() => {});
+  if (!S && homeFcPending !== w.s.id) {
+    homeFcPending = w.s.id;
+    forecastModel(w.s).then(fc => {
+      homeFcPending = null;
+      const s2 = fcSummary(fc);
+      if (s2) { homeFc = {sid: w.s.id, S: s2}; renderHome(); }
+      else if ($('homeFc')) $('homeFc').textContent = 'ข้อมูลย้อนหลังไม่พอสำหรับพยากรณ์ที่สถานีนี้';
+    }).catch(() => { homeFcPending = null; if ($('homeFc')) $('homeFc').textContent = 'คำนวณพยากรณ์ไม่ได้ ลองกดรีเฟรช'; });
+  }
 }
 
 // รายการที่ติ๊กแล้ว เก็บในเครื่องนี้เท่านั้น
@@ -573,7 +584,12 @@ function renderRain(){
 // ---------- เขื่อน ----------
 async function loadDams(){
   let dams;
-  try { dams = await fetchDams(); } catch (e) { $('dams').innerHTML = '<p class="err">โหลดข้อมูลเขื่อนไม่ได้</p>'; return; }
+  let main;
+  try { main = await fetchMain(); dams = main.dams; } catch (e) {
+    $('dams').innerHTML = '<p class="err">โหลดข้อมูลเขื่อนไม่ได้</p>'; $('rainFc').innerHTML = '<p class="err">โหลดภาพฝนคาดการณ์ไม่ได้</p>'; return; }
+  $('rainFc').innerHTML = main.rainFc.length ? main.rainFc.map((r, i) => `<a href="${esc(r.url)}" target="_blank" rel="noopener">
+      <img src="${esc(r.url)}" alt="แผนที่ฝนคาดการณ์ ${esc(r.label)}" loading="lazy"><span>${esc(r.label)}</span></a>`).join('')
+    : '<p class="hint">ไม่มีภาพฝนคาดการณ์</p>';
   $('dams').innerHTML = dams.map(d => {
     const k = d.pct >= 90 ? 'lv5' : d.pct >= 80 ? 'lv4' : 'accent';
     const note = d.pct >= 90 ? 'ใกล้เต็ม อาจต้องปล่อยน้ำเพิ่ม'

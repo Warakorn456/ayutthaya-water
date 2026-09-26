@@ -16,6 +16,18 @@
   .hc .xd{fill:var(--surface);stroke:var(--water,var(--accent));stroke-width:2}
   .hc .cap{font-size:.78rem;color:var(--muted);display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
   .hc .tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--surface);border-radius:6px;padding:4px 8px;font-size:.78rem;line-height:1.35;white-space:nowrap;transform:translate(-50%,-110%)}
+  .hc .band{fill:var(--water,var(--accent));opacity:.2}
+  .hc .fline{fill:none;stroke:var(--water,var(--accent));stroke-width:2;stroke-dasharray:6 4}
+  .hc .now{stroke:var(--ink);stroke-width:1;stroke-dasharray:2 3;opacity:.6}
+  .hc .nowlbl{fill:var(--ink);font-weight:700}
+  .fc-table{overflow-x:auto}
+  .fc-table table{border-collapse:collapse;width:100%;font-size:.88rem}
+  .fc-table th,.fc-table td{padding:6px 5px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  .fc-table th{white-space:nowrap}
+  .fc-table th{color:var(--muted);font-weight:500;font-size:.8rem}
+  .fc-table .r{text-align:right}
+  .fc-ready{font-weight:700;color:var(--lv5)}
+  .fc-note{color:var(--muted);font-size:.8rem;line-height:1.5}
   .fc{border-radius:10px;padding:10px 12px;display:grid;gap:2px;border-left:6px solid var(--fc,var(--lv0));background:var(--fc-bg,var(--bg))}
   .fc strong{font-size:1rem}
   .fc small{color:var(--muted)}
@@ -36,23 +48,25 @@ function niceTicks(lo, hi, n = 4){
 }
 
 // วาดกราฟระดับน้ำ (+ กราฟอัตราการไหลแยกอีกอัน) ลงใน el พร้อม tooltip
-function mountHistory(el, hist, s){
+function mountHistory(el, hist, s, fc){
   const pts = hist.points.filter(p => p.v != null);
   const qpts = hist.points.filter(p => p.q != null);
   if (pts.length < 2) { el.innerHTML = '<p class="hint">ไม่มีข้อมูลย้อนหลังของสถานีนี้</p>'; return; }
   const bank = s.bank ?? hist.minBank;
   const W = Math.max(300, Math.round(el.clientWidth || 360)), H = 190, L = 8, R = 40, T = 10, B = 20;
   const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
-  const vs = pts.map(p => p.v).concat(bank != null ? [bank] : []);
+  const fh = fc && fc.horizons.length ? fc.horizons : null;
+  const tEnd = fh ? fh[fh.length - 1].t : t1;
+  const vs = pts.map(p => p.v).concat(bank != null ? [bank] : [], fh ? fh.flatMap(h => [h.lo, h.hi]) : []);
   let lo = Math.min(...vs), hi = Math.max(...vs);
   const pad = Math.max((hi - lo) * .12, .15); lo -= pad; hi += pad;
-  const X = t => L + (t - t0) / Math.max(t1 - t0, 1) * (W - L - R);
+  const X = t => L + (t - t0) / Math.max(tEnd - t0, 1) * (W - L - R);
   const Y = v => T + (hi - v) / (hi - lo) * (H - T - B);
   const path = pts.map((p, i) => `${i && pts[i - 1] && p.t - pts[i - 1].t > 3 * 36e5 ? 'M' : (i ? 'L' : 'M')}${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join('');
   const area = `M${X(pts[0].t)},${H - B}` + pts.map(p => `L${X(p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join('') + `L${X(t1)},${H - B}Z`;
   const days = [];
   const d0 = new Date(new Date(t0).toLocaleDateString('sv-SE', {timeZone: 'Asia/Bangkok'}) + 'T00:00:00+07:00').getTime();
-  for (let d = d0 + 864e5; d < t1; d += 864e5) days.push(d);
+  for (let d = d0 + 864e5; d < tEnd; d += 864e5) days.push(d);
   const dayStep = X(t0 + 864e5) - X(t0) < 44 ? 2 : 1;
   const last = pts[pts.length - 1];
 
@@ -72,12 +86,16 @@ function mountHistory(el, hist, s){
   }
 
   el.innerHTML = `<div class="hc">
-    <div class="cap"><span>ระดับน้ำย้อนหลัง 7 วัน (ม.รทก.)</span><span>สูงสุด ${fmtM(forecastPeak(pts).v)} เมื่อ ${thTime(forecastPeak(pts).t)}</span></div>
+    <div class="cap"><span>ระดับน้ำ 7 วันที่ผ่านมา${fh ? ' + พยากรณ์ 3 วัน (เส้นประ แถบคือช่วงที่เป็นไปได้)' : ''} (ม.รทก.)</span><span>สูงสุด ${fmtM(forecastPeak(pts).v)} เมื่อ ${thTime(forecastPeak(pts).t)}</span></div>
     <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="กราฟระดับน้ำย้อนหลัง 7 วัน ค่าล่าสุด ${fmtM(last.v)} เมตร">
       ${niceTicks(lo, hi).map(v => `<line class="grid" x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}"/><text x="${W - R + 4}" y="${Y(v) + 3.5}">${v}</text>`).join('')}
       ${days.map((d, i) => `<line class="grid" x1="${X(d)}" x2="${X(d)}" y1="${T}" y2="${H - B}"/>${i % dayStep ? '' : `<text x="${X(d) + 3}" y="${H - 6}">${thDay(d)}</text>`}`).join('')}
       <path class="area" d="${area}"/>
       ${bank != null ? `<line class="bank" x1="${L}" x2="${W - R}" y1="${Y(bank)}" y2="${Y(bank)}"/><text class="banklbl" x="${L + 2}" y="${Y(bank) - 4}">ตลิ่ง ${bank.toFixed(2)}</text>` : ''}
+      ${fh ? `<path class="band" d="M${X(fc.t)},${Y(fc.v)}${fh.map(h => `L${X(h.t).toFixed(1)},${Y(h.hi).toFixed(1)}`).join('')}${[...fh].reverse().map(h => `L${X(h.t).toFixed(1)},${Y(h.lo).toFixed(1)}`).join('')}Z"/>
+        <path class="fline" d="M${X(fc.t)},${Y(fc.v)}${fh.map(h => `L${X(h.t).toFixed(1)},${Y(h.mean).toFixed(1)}`).join('')}"/>
+        <line class="now" x1="${X(t1)}" x2="${X(t1)}" y1="${T}" y2="${H - B}"/>
+        <text class="nowlbl" x="${X(t1) + 4}" y="${T + 10}">พยากรณ์ →</text>` : ''}
       <path class="line" d="${path}"/>
       <circle class="end" cx="${X(last.t)}" cy="${Y(last.v)}" r="4.5"/>
       <g class="hover" visibility="hidden"><line class="xh" y1="${T}" y2="${H - B}"/><circle class="xd" r="4.5"/></g>
@@ -90,7 +108,19 @@ function mountHistory(el, hist, s){
   const svg = el.querySelector('svg'), hov = svg.querySelector('.hover'), tip = el.querySelector('.tip');
   const move = ev => {
     const r = svg.getBoundingClientRect(), x = (ev.clientX - r.left) / r.width * W;
-    const t = t0 + (x - L) / (W - L - R) * (t1 - t0);
+    const t = t0 + (x - L) / (W - L - R) * (tEnd - t0);
+    if (fh && t > t1) {
+      let h = fh[0];
+      for (const c of fh) if (Math.abs(c.t - t) < Math.abs(h.t - t)) h = c;
+      hov.setAttribute('visibility', 'visible');
+      hov.querySelector('line').setAttribute('x1', X(h.t)); hov.querySelector('line').setAttribute('x2', X(h.t));
+      hov.querySelector('circle').setAttribute('cx', X(h.t)); hov.querySelector('circle').setAttribute('cy', Y(h.mean));
+      tip.hidden = false;
+      tip.style.left = Math.min(Math.max(X(h.t) / W * r.width, 80), r.width - 80) + 'px';
+      tip.style.top = (Y(h.hi) / H * r.height + svg.offsetTop) + 'px';
+      tip.innerHTML = `พยากรณ์ ${thTime(h.t)}<br><b>${h.mean.toFixed(2)} ม.</b> (${h.lo.toFixed(2)}–${h.hi.toFixed(2)})${bank != null ? `<br>${h.mean > bank ? 'เกิน' : 'ต่ำกว่า'}ตลิ่ง ${Math.abs(h.mean - bank).toFixed(2)}` : ''}`;
+      return;
+    }
     let p = pts[0];
     for (const c of pts) if (Math.abs(c.t - t) < Math.abs(p.t - t)) p = c;
     const q = valueAt(hist.points, p.t, 'q');
@@ -141,10 +171,12 @@ async function renderStationHistory(el, s){
   el.innerHTML = '<p class="hint">กำลังโหลดข้อมูลย้อนหลัง…</p>';
   el.dataset.sid = s.id;
   try {
-    const hist = await fetchHistory(s.id);
+    const [hist, fc] = await Promise.all([fetchHistory(s.id),
+      typeof forecastModel === 'function' ? forecastModel(s).catch(() => null) : null]);
     if (el.dataset.sid !== s.id) return;
-    el.innerHTML = forecastHtml(forecast(hist.points, s.bank ?? hist.minBank)) + '<div class="hc-box"></div>';
-    mountHistory(el.querySelector('.hc-box'), hist, s);
+    const box = fc ? fcBoxHtml(fc) : forecastHtml(forecast(hist.points, s.bank ?? hist.minBank));
+    el.innerHTML = box + '<div class="hc-box"></div>';
+    mountHistory(el.querySelector('.hc-box'), hist, s, fc);
   } catch (e) {
     if (el.dataset.sid === s.id) el.innerHTML = '<p class="err">โหลดข้อมูลย้อนหลังไม่ได้ ลองกดรีเฟรช</p>';
   }

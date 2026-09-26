@@ -160,18 +160,24 @@ function rainLevel(mm){
   return {k: 'r1', t: 'ฝนเล็กน้อย'};
 }
 
-// เขื่อนหลัก (ไฟล์ใหญ่ เก็บ cache 1 ชม.)
-async function fetchDams(){
-  try { const c = JSON.parse(localStorage.getItem('wl-dams')); if (c && Date.now() - c.at < 36e5) return c.dams; } catch (e) {}
+// เขื่อนหลัก + ภาพฝนคาดการณ์ (ไฟล์ใหญ่ เก็บ cache 1 ชม.)
+async function fetchDams(){ return (await fetchMain()).dams; }
+async function fetchMain(){
+  try { const c = JSON.parse(localStorage.getItem('wl-main')); if (c && Date.now() - c.at < 36e5) return c; } catch (e) {}
   const r = await fetchT(API_BASE + '/thailand_main', 60000);
   if (!r.ok) throw new Error('dams ' + r.status);
-  const all = (await r.json())?.dam?.data?.data || [];
+  const main = await r.json();
+  const all = main?.dam?.data?.data || [];
+  const IMG = API_BASE.replace('/public', '/shared') + '/image?image=';
+  const rainFc = (main?.pre_rain?.data?.data || []).slice(0, 3).map((d, i) => ({
+    url: IMG + encodeURIComponent(d.media_path), label: ['วันนี้', 'พรุ่งนี้', 'มะรืนนี้'][i] || d.filename}));
   const dams = DAMS.map(n => all.find(d => d.dam?.dam_name?.th === n)).filter(Boolean).map(d => ({
     name: d.dam.dam_name.th, pct: num(d.dam_storage_percent), storage: num(d.dam_storage),
     inflow: num(d.dam_inflow), released: num(d.dam_released), date: d.dam_date
   }));
-  try { localStorage.setItem('wl-dams', JSON.stringify({at: Date.now(), dams})); } catch (e) {}
-  return dams;
+  const res = {at: Date.now(), dams, rainFc};
+  try { localStorage.setItem('wl-main', JSON.stringify(res)); } catch (e) {}
+  return res;
 }
 
 function updatedText(res){
