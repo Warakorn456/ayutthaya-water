@@ -73,7 +73,7 @@ async function writeConfig(cfg){
 async function backgroundCheck(){
   const cfg = await readConfig();
   if (!cfg || !cfg.on || !cfg.sid) return;
-  const res = await fetch(API);
+  const res = await fetch(API, {referrerPolicy: 'no-referrer'});
   if (!res.ok) return;
   const d = (await res.json())?.waterlevel_data?.data || [];
   const row = d.find(x => String(x.station?.id) === cfg.sid);
