@@ -47,13 +47,18 @@ function parse(json){
 
 // ดึงข้อมูลสด ถ้าไม่ได้ให้ใช้ cache ล่าสุด: {stations, fromCache, at} หรือ null
 async function fetchStations(){
+  let old = null;
   for (const url of [API, '/api/waterlevel']) {
     try {
       const r = await fetchT(url, 25000, {cache: 'no-store'});
       if (r.ok) {
         const json = await r.json();
-        // ออฟไลน์: service worker ส่งข้อมูลเก่ามาให้ พร้อมเวลาที่เก็บไว้
-        if (r.headers.get('X-From-Cache')) return {stations: parse(json), fromCache: true, at: +r.headers.get('X-Cached-At') || Date.now()};
+        // ออฟไลน์: service worker ส่งข้อมูลเก่ามาให้ เก็บไว้สำรอง แล้วลองแหล่งถัดไปก่อน
+        if (r.headers.get('X-From-Cache')) {
+          const at = +r.headers.get('X-Cached-At') || 0;
+          if (!old || at > old.at) old = {json, at};
+          continue;
+        }
         try { localStorage.setItem('wl-cache', JSON.stringify({at: Date.now(), json})); } catch (e) {}
         return {stations: parse(json), fromCache: false, at: Date.now()};
       }
@@ -61,9 +66,9 @@ async function fetchStations(){
   }
   try {
     const c = JSON.parse(localStorage.getItem('wl-cache'));
-    if (c) return {stations: parse(c.json), fromCache: true, at: c.at};
+    if (c && (!old || c.at > old.at)) old = c;
   } catch (e) {}
-  return null;
+  return old ? {stations: parse(old.json), fromCache: true, at: old.at || Date.now()} : null;
 }
 
 // ---------- ประวัติย้อนหลังรายชั่วโมง ----------

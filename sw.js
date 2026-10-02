@@ -1,5 +1,5 @@
 // Service worker: เปิดได้แม้เน็ตหลุด + ตรวจระดับน้ำเบื้องหลัง (เฉพาะเครื่องที่รองรับ)
-const SHELL = 'wl-shell-v1';
+const SHELL = 'wl-shell-v5';
 const DATA = 'wl-data-v1';
 const CONFIG = 'wl-config';
 const SHELL_FILES = ['./', 'index.html', '3d.html', 'data.js', 'ui.js', 'app.js', 'forecast.js', 'flow.js', 'analysis.js', 'manifest.webmanifest',
@@ -28,7 +28,7 @@ self.addEventListener('fetch', e => {
   // เฉพาะข้อมูล JSON (/public/) ส่วนรูปภาพ (/shared/image) ให้เบราว์เซอร์โหลดเองตามปกติ
   if (url.hostname === 'api-v3.thaiwater.net' && url.pathname.includes('/public/')) {
     // เน็ตช้าเกินเวลา ให้ใช้ข้อมูลล่าสุดที่เก็บไว้แทน (ไฟล์ใหญ่ให้เวลามากกว่า)
-    const ms = url.pathname.includes('thailand_main') ? 50000 : url.pathname.includes('rain_24h') ? 30000 : 12000;
+    const ms = url.pathname.includes('thailand_main') ? 50000 : (url.pathname.includes('rain_24h') || url.pathname.includes('waterlevel_load')) ? 30000 : 12000;
     e.respondWith(withTimeout(fetch(req), ms).then(res => {
       if (res.ok) {
         // เก็บพร้อมเวลาที่โหลด เพื่อให้หน้าเว็บบอกได้ว่าข้อมูลเก่าแค่ไหนตอนออฟไลน์
