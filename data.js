@@ -8,9 +8,11 @@ const CENTRAL = ['10','11','12','13','14','15','16','17','18','19','24','25','26
 
 const $ = id => document.getElementById(id);
 // fetch ที่มีเวลาจำกัด: เน็ตช้า/ค้างช่วงน้ำท่วม จะได้ไม่รอไม่รู้จบ
+// ไม่ส่ง Referer: thaiwater ตอบ 429 ถ้ามี Referer จากเว็บอื่น (เช่น github.io)
+// (ห้ามตั้งทั้งหน้าด้วย <meta name="referrer"> เพราะ tile ของ OpenStreetMap ต้องมี Referer ไม่งั้นโดน 403)
 async function fetchT(url, ms, opts = {}){
   const c = new AbortController(), tm = setTimeout(() => c.abort(), ms);
-  try { return await fetch(url, {...opts, signal: c.signal}); } finally { clearTimeout(tm); }
+  try { return await fetch(url, {referrerPolicy: 'no-referrer', ...opts, signal: c.signal}); } finally { clearTimeout(tm); }
 }
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 

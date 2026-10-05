@@ -2,8 +2,6 @@
 <html lang="th">
 <head>
 <meta charset="utf-8">
-<!-- thaiwater ตอบ 429 ถ้ามี Referer จากเว็บอื่น (เช่น github.io) -->
-<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ระดับน้ำอยุธยา</title>
 <link rel="manifest" href="manifest.webmanifest">
@@ -354,7 +352,7 @@ tr.row-click:hover td{background:color-mix(in srgb,var(--accent) 7%,transparent)
 
 <dialog id="imgDlg" class="imgdlg" aria-labelledby="imgDlgTitle">
   <div class="dhead"><b id="imgDlgTitle"></b><button type="button" id="imgDlgClose">ปิด</button></div>
-  <img id="imgDlgImg" alt="">
+  <img id="imgDlgImg" alt="" referrerpolicy="no-referrer">
 </dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -605,7 +603,7 @@ async function loadDams(){
   try { main = await fetchMain(); dams = main.dams; } catch (e) {
     $('dams').innerHTML = '<p class="err">โหลดข้อมูลเขื่อนไม่ได้</p>'; $('rainFc').innerHTML = '<p class="err">โหลดภาพฝนคาดการณ์ไม่ได้</p>'; return; }
   $('rainFc').innerHTML = main.rainFc.length ? main.rainFc.map(r => `<button type="button" class="imgbtn" data-img="${esc(r.url)}" data-label="ฝนคาดการณ์ ${esc(r.label)}">
-      <img src="${esc(r.url)}" alt="แผนที่ฝนคาดการณ์ ${esc(r.label)}" loading="lazy"><span>${esc(r.label)}</span></button>`).join('')
+      <img src="${esc(r.url)}" alt="แผนที่ฝนคาดการณ์ ${esc(r.label)}" loading="lazy" referrerpolicy="no-referrer"><span>${esc(r.label)}</span></button>`).join('')
     : '<p class="hint">ไม่มีภาพฝนคาดการณ์</p>';
   $('dams').innerHTML = dams.map(d => {
     const k = d.pct >= 90 ? 'lv5' : d.pct >= 80 ? 'lv4' : 'accent';
